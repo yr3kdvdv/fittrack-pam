@@ -1,0 +1,6 @@
+name: dart_exercises
+description: Упражнения E1–E6 на Dart для лабораторной L1.
+publish_to: none
+
+environment:
+  sdk: ^3.9.0
