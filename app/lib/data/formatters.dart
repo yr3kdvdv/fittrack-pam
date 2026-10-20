@@ -31,6 +31,33 @@ const _monthsGenitive = [
 String formatLongDate(DateTime date) =>
     '${_weekdays[date.weekday - 1]}, ${date.day} ${_monthsGenitive[date.month - 1]}';
 
+const _monthsShort = [
+  'янв.',
+  'февр.',
+  'марта',
+  'апр.',
+  'мая',
+  'июня',
+  'июля',
+  'авг.',
+  'сент.',
+  'окт.',
+  'нояб.',
+  'дек.',
+];
+
+/// «12–18 окт.» или «28 сент. – 4 окт.», если неделя переходит в другой месяц.
+String formatWeekRange(DateTime monday) {
+  // Конструктор с днём + 6, а не add(Duration), чтобы не зависеть от перехода
+  // на летнее/зимнее время.
+  final sunday = DateTime(monday.year, monday.month, monday.day + 6);
+  final endMonth = _monthsShort[sunday.month - 1];
+  if (monday.month == sunday.month) {
+    return '${monday.day}–${sunday.day} $endMonth';
+  }
+  return '${monday.day} ${_monthsShort[monday.month - 1]} – ${sunday.day} $endMonth';
+}
+
 /// «17.10.2026».
 String formatNumericDate(DateTime date) {
   final day = date.day.toString().padLeft(2, '0');

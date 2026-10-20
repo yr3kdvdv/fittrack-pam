@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'exercises_screen.dart';
+import 'stats_screen.dart';
 import 'workouts_screen.dart';
 
 /// Оболочка с нижней навигацией — единственный StatefulWidget приложения.
@@ -18,7 +19,7 @@ class _HomeShellState extends State<HomeShell> {
   static const _tabs = <Widget>[
     ExercisesScreen(),
     WorkoutsScreen(),
-    _PendingTab(title: 'Статистика'),
+    StatsScreen(),
     _PendingTab(title: 'Профиль'),
   ];
 

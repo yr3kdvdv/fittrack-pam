@@ -252,6 +252,59 @@ final mockSessions = <WorkoutSession>[
   ),
 ];
 
+/// Итог одной недели для статистики.
+class WeeklyStat {
+  const WeeklyStat({
+    required this.weekStart,
+    required this.sessionCount,
+    required this.totalMinutes,
+  });
+
+  /// Понедельник недели.
+  final DateTime weekStart;
+  final int sessionCount;
+  final int totalMinutes;
+}
+
+/// Зашитые итоги по неделям, сначала новые. На L2 они не вычисляются в UI;
+/// совпадение с mockSessions проверяет test/mock_data_test.dart.
+final mockWeeklyStats = <WeeklyStat>[
+  WeeklyStat(
+    weekStart: DateTime(2026, 10, 12),
+    sessionCount: 3,
+    totalMinutes: 180,
+  ),
+  WeeklyStat(
+    weekStart: DateTime(2026, 10, 5),
+    sessionCount: 2,
+    totalMinutes: 105,
+  ),
+  WeeklyStat(
+    weekStart: DateTime(2026, 9, 28),
+    sessionCount: 2,
+    totalMinutes: 120,
+  ),
+  WeeklyStat(
+    weekStart: DateTime(2026, 9, 21),
+    sessionCount: 3,
+    totalMinutes: 160,
+  ),
+  WeeklyStat(
+    weekStart: DateTime(2026, 9, 14),
+    sessionCount: 1,
+    totalMinutes: 60,
+  ),
+  WeeklyStat(
+    weekStart: DateTime(2026, 9, 7),
+    sessionCount: 2,
+    totalMinutes: 95,
+  ),
+];
+
+/// Общие итоги за весь период, тоже зашитые и проверяемые тестом.
+const mockTotalSessions = 13;
+const mockTotalMinutes = 720;
+
 /// Шаги техники по id упражнения. В модели темы техники нет, поэтому она
 /// хранится отдельно и не расширяет Exercise сверх модели backend.
 const exerciseTechnique = <String, List<String>>{
