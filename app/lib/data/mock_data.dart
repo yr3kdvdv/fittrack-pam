@@ -21,6 +21,26 @@ class Exercise {
   final String imageUrl;
 }
 
+class WorkoutSession {
+  const WorkoutSession({
+    required this.id,
+    required this.userId,
+    required this.date,
+    required this.exerciseIds,
+    required this.durationMin,
+    required this.notes,
+  });
+
+  final String id;
+  final String userId;
+  final DateTime date;
+
+  /// Ссылки на упражнения каталога по id, как в модели backend.
+  final List<String> exerciseIds;
+  final int durationMin;
+  final String notes;
+}
+
 /// Группы мышц для фильтра каталога, в порядке показа.
 const muscleGroups = ['Ноги', 'Грудь', 'Спина', 'Плечи', 'Руки', 'Пресс'];
 
@@ -113,6 +133,122 @@ const mockExercises = <Exercise>[
         'Статическое упражнение для мышц кора: укрепляет пресс, '
         'поясницу и учит держать корпус ровным.',
     imageUrl: '/media/exercises/plank.jpg',
+  ),
+];
+
+Exercise exerciseById(String id) =>
+    mockExercises.firstWhere((exercise) => exercise.id == id);
+
+const mockUserId = 'user-01';
+
+/// Тренировки за шесть недель (7 сентября — 18 октября 2026), сначала новые.
+/// DateTime не бывает const, поэтому список final.
+final mockSessions = <WorkoutSession>[
+  WorkoutSession(
+    id: 'ws-13',
+    userId: mockUserId,
+    date: DateTime(2026, 10, 17),
+    exerciseIds: ['ex-05', 'ex-06', 'ex-08'],
+    durationMin: 50,
+    notes: 'Подтягивания 4×8, последний подход дался тяжело.',
+  ),
+  WorkoutSession(
+    id: 'ws-12',
+    userId: mockUserId,
+    date: DateTime(2026, 10, 15),
+    exerciseIds: ['ex-03', 'ex-04', 'ex-09'],
+    durationMin: 55,
+    notes: 'Жим лёжа 4×6 по 70 кг — новый рабочий вес.',
+  ),
+  WorkoutSession(
+    id: 'ws-11',
+    userId: mockUserId,
+    date: DateTime(2026, 10, 13),
+    exerciseIds: ['ex-01', 'ex-02', 'ex-10'],
+    durationMin: 75,
+    notes:
+        'Присед 5×5 по 80 кг. В румынской тяге следить, '
+        'чтобы колено опорной ноги не уходило внутрь.',
+  ),
+  WorkoutSession(
+    id: 'ws-10',
+    userId: mockUserId,
+    date: DateTime(2026, 10, 9),
+    exerciseIds: ['ex-07', 'ex-08', 'ex-09'],
+    durationMin: 60,
+    notes: 'Плечи и руки, отдых между подходами не больше минуты.',
+  ),
+  WorkoutSession(
+    id: 'ws-09',
+    userId: mockUserId,
+    date: DateTime(2026, 10, 6),
+    exerciseIds: ['ex-01', 'ex-10'],
+    durationMin: 45,
+    notes: 'Лёгкая тренировка после пропуска, техника без спешки.',
+  ),
+  WorkoutSession(
+    id: 'ws-08',
+    userId: mockUserId,
+    date: DateTime(2026, 10, 2),
+    exerciseIds: ['ex-03', 'ex-05', 'ex-06'],
+    durationMin: 70,
+    notes: 'Верх тела: жим 4×8 по 65 кг, тяга в наклоне 4×10.',
+  ),
+  WorkoutSession(
+    id: 'ws-07',
+    userId: mockUserId,
+    date: DateTime(2026, 9, 29),
+    exerciseIds: ['ex-01', 'ex-02'],
+    durationMin: 50,
+    notes: 'Ноги. Присед 5×5 по 77,5 кг.',
+  ),
+  WorkoutSession(
+    id: 'ws-06',
+    userId: mockUserId,
+    date: DateTime(2026, 9, 26),
+    exerciseIds: ['ex-04', 'ex-07', 'ex-09'],
+    durationMin: 65,
+    notes: 'Брусья с дополнительным весом 5 кг.',
+  ),
+  WorkoutSession(
+    id: 'ws-05',
+    userId: mockUserId,
+    date: DateTime(2026, 9, 24),
+    exerciseIds: ['ex-05', 'ex-10'],
+    durationMin: 40,
+    notes: 'Подтягивания и кор, в конце растяжка.',
+  ),
+  WorkoutSession(
+    id: 'ws-04',
+    userId: mockUserId,
+    date: DateTime(2026, 9, 22),
+    exerciseIds: ['ex-03', 'ex-08'],
+    durationMin: 55,
+    notes: 'Жим лёжа 5×5 по 62,5 кг.',
+  ),
+  WorkoutSession(
+    id: 'ws-03',
+    userId: mockUserId,
+    date: DateTime(2026, 9, 15),
+    exerciseIds: ['ex-01', 'ex-06', 'ex-10'],
+    durationMin: 60,
+    notes: 'После простуды — одна тренировка за неделю.',
+  ),
+  WorkoutSession(
+    id: 'ws-02',
+    userId: mockUserId,
+    date: DateTime(2026, 9, 11),
+    exerciseIds: ['ex-03', 'ex-04', 'ex-07'],
+    durationMin: 45,
+    notes: 'Первая неделя новой программы, веса умеренные.',
+  ),
+  WorkoutSession(
+    id: 'ws-01',
+    userId: mockUserId,
+    date: DateTime(2026, 9, 8),
+    exerciseIds: ['ex-01', 'ex-05'],
+    durationMin: 50,
+    notes: 'Знакомство с программой, подбор рабочих весов.',
   ),
 ];
 

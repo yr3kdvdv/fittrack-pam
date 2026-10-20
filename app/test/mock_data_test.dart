@@ -25,4 +25,35 @@ void main() {
       expect(exerciseTechnique.length, mockExercises.length);
     });
   });
+
+  group('тренировки', () {
+    test('не меньше 8, идентификаторы уникальны, один пользователь', () {
+      expect(mockSessions.length, greaterThanOrEqualTo(8));
+      expect(mockSessions.map((s) => s.id).toSet().length, mockSessions.length);
+      expect(mockSessions.every((s) => s.userId == mockUserId), isTrue);
+    });
+
+    test('ссылаются только на упражнения из каталога', () {
+      final ids = mockExercises.map((e) => e.id).toSet();
+      for (final session in mockSessions) {
+        expect(session.exerciseIds, isNotEmpty, reason: session.id);
+        expect(
+          ids.containsAll(session.exerciseIds),
+          isTrue,
+          reason: session.id,
+        );
+        expect(session.durationMin, greaterThan(0), reason: session.id);
+      }
+    });
+
+    test('упорядочены по дате, сначала новые', () {
+      for (var i = 1; i < mockSessions.length; i++) {
+        expect(
+          mockSessions[i - 1].date.isAfter(mockSessions[i].date),
+          isTrue,
+          reason: '${mockSessions[i - 1].id} → ${mockSessions[i].id}',
+        );
+      }
+    });
+  });
 }
