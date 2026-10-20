@@ -1,17 +1,35 @@
-# fittrack
+# FitTrack
 
-A new Flutter project.
+Личный дневник тренировок: каталог упражнений по группам мышц, история
+тренировочных сессий, статистика и профиль. Учебный проект курса PAM, тема T2.
 
-## Getting Started
+Текущий этап — L2: статический интерфейс Material 3 с зашитыми в код данными.
+Сети, базы данных, проверки форм и сохранения на этом этапе нет.
 
-This project is a starting point for a Flutter application.
+## Запуск
 
-A few resources to get you started if this is your first Flutter project:
+Нужны Flutter 3.47+ (Dart 3.13+) и запущенный эмулятор Android или телефон
+с включённой отладкой по USB.
 
-- [Learn Flutter](https://docs.flutter.dev/get-started/learn-flutter)
-- [Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Flutter learning resources](https://docs.flutter.dev/reference/learning-resources)
+```sh
+cd app
+flutter pub get
+flutter devices      # убедиться, что устройство видно
+flutter run
+```
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+## Проверки
+
+```sh
+dart format --output=none --set-exit-if-changed lib test
+flutter analyze
+flutter test
+```
+
+## Структура
+
+- `lib/main.dart` — MaterialApp и тема.
+- `lib/theme.dart` — ThemeData на основе ColorScheme.fromSeed.
+- `lib/screens/` — экраны, по одному файлу на экран.
+- `lib/widgets/` — переиспользуемые компоненты.
+- `lib/data/` — общие модели и mock-данные.
