@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'exercises_screen.dart';
+
 /// Оболочка с нижней навигацией — единственный StatefulWidget приложения.
 /// Хранит только индекс выбранной вкладки; сами вкладки — StatelessWidget.
 class HomeShell extends StatefulWidget {
@@ -13,7 +15,7 @@ class _HomeShellState extends State<HomeShell> {
   int _selectedIndex = 0;
 
   static const _tabs = <Widget>[
-    _PendingTab(title: 'Упражнения'),
+    ExercisesScreen(),
     _PendingTab(title: 'Дневник'),
     _PendingTab(title: 'Статистика'),
     _PendingTab(title: 'Профиль'),
