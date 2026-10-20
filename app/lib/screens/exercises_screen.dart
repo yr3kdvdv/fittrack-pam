@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../data/mock_data.dart';
 import '../widgets/exercise_tile.dart';
 import '../widgets/muscle_group_avatar.dart';
+import 'exercise_detail_screen.dart';
 
 /// Каталог упражнений. Поиск и фильтры на L2 только визуальные:
 /// работать они начнут вместе с состоянием на L4.
@@ -33,8 +34,19 @@ class ExercisesScreen extends StatelessWidget {
             sliver: SliverList.separated(
               itemCount: mockExercises.length,
               separatorBuilder: (_, _) => const SizedBox(height: 8),
-              itemBuilder: (context, index) =>
-                  ExerciseTile(exercise: mockExercises[index]),
+              itemBuilder: (context, index) {
+                final exercise = mockExercises[index];
+                return ExerciseTile(
+                  exercise: exercise,
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => ExerciseDetailScreen(exercise: exercise),
+                    ),
+                  ),
+                );
+              },
             ),
           ),
         ],

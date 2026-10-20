@@ -17,5 +17,12 @@ void main() {
     test('есть длинное название для проверки переноса строк', () {
       expect(mockExercises.any((e) => e.name.length > 45), isTrue);
     });
+
+    test('у каждого упражнения есть шаги техники', () {
+      for (final exercise in mockExercises) {
+        expect(exerciseTechnique[exercise.id], isNotEmpty, reason: exercise.id);
+      }
+      expect(exerciseTechnique.length, mockExercises.length);
+    });
   });
 }
