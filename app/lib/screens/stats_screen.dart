@@ -33,7 +33,7 @@ class StatsScreen extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 12),
-          _MetricRow(
+          MetricPair(
             left: const MetricCard(
               icon: Icons.event_available,
               value: '$mockTotalSessions',
@@ -46,7 +46,7 @@ class StatsScreen extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 8),
-          _MetricRow(
+          MetricPair(
             left: MetricCard(
               icon: Icons.timer_outlined,
               value: formatDuration(averageMinutes),
@@ -64,28 +64,6 @@ class StatsScreen extends StatelessWidget {
               padding: const EdgeInsets.only(bottom: 8),
               child: _WeekCard(week: week, maxMinutes: maxWeekMinutes),
             ),
-        ],
-      ),
-    );
-  }
-}
-
-/// Две карточки показателей одинаковой высоты в одной строке.
-class _MetricRow extends StatelessWidget {
-  const _MetricRow({required this.left, required this.right});
-
-  final Widget left;
-  final Widget right;
-
-  @override
-  Widget build(BuildContext context) {
-    return IntrinsicHeight(
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Expanded(child: left),
-          const SizedBox(width: 8),
-          Expanded(child: right),
         ],
       ),
     );

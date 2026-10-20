@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'exercises_screen.dart';
+import 'profile_screen.dart';
 import 'stats_screen.dart';
 import 'workouts_screen.dart';
 
@@ -20,7 +21,7 @@ class _HomeShellState extends State<HomeShell> {
     ExercisesScreen(),
     WorkoutsScreen(),
     StatsScreen(),
-    _PendingTab(title: 'Профиль'),
+    ProfileScreen(),
   ];
 
   @override
@@ -55,17 +56,5 @@ class _HomeShellState extends State<HomeShell> {
         ],
       ),
     );
-  }
-}
-
-/// Временный пустой раздел на время поэтапной сборки экранов.
-class _PendingTab extends StatelessWidget {
-  const _PendingTab({required this.title});
-
-  final String title;
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(appBar: AppBar(title: Text(title)));
   }
 }

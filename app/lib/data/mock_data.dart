@@ -252,6 +252,42 @@ final mockSessions = <WorkoutSession>[
   ),
 ];
 
+/// Профиль пользователя. На L5 часть полей придёт из аутентификации шаблона.
+class UserProfile {
+  const UserProfile({
+    required this.id,
+    required this.fullName,
+    required this.email,
+    required this.age,
+    required this.heightCm,
+    required this.weightKg,
+    required this.goal,
+    required this.weeklyTarget,
+  });
+
+  final String id;
+  final String fullName;
+  final String email;
+  final int age;
+  final int heightCm;
+  final double weightKg;
+  final String goal;
+
+  /// Сколько тренировок в неделю пользователь планирует.
+  final int weeklyTarget;
+}
+
+const mockUser = UserProfile(
+  id: mockUserId,
+  fullName: 'Анна Чебан',
+  email: 'anna.ceban@example.com',
+  age: 21,
+  heightCm: 168,
+  weightKg: 59.5,
+  goal: 'Набрать силу и подтянуть выносливость к весенним соревнованиям',
+  weeklyTarget: 3,
+);
+
 /// Итог одной недели для статистики.
 class WeeklyStat {
   const WeeklyStat({

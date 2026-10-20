@@ -39,3 +39,26 @@ class MetricCard extends StatelessWidget {
     );
   }
 }
+
+/// Две карточки показателей одинаковой высоты в одной строке; на узком
+/// экране подпись может переноситься, и высоты выравниваются по большей.
+class MetricPair extends StatelessWidget {
+  const MetricPair({super.key, required this.left, required this.right});
+
+  final MetricCard left;
+  final MetricCard right;
+
+  @override
+  Widget build(BuildContext context) {
+    return IntrinsicHeight(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Expanded(child: left),
+          const SizedBox(width: 8),
+          Expanded(child: right),
+        ],
+      ),
+    );
+  }
+}
