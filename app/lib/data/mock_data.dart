@@ -141,6 +141,10 @@ Exercise exerciseById(String id) =>
 
 const mockUserId = 'user-01';
 
+/// Демонстрационная «сегодняшняя» дата — конец периода mock-данных.
+/// Зашита, а не DateTime.now(), чтобы макет выглядел одинаково в любой день.
+final mockToday = DateTime(2026, 10, 18);
+
 /// Тренировки за шесть недель (7 сентября — 18 октября 2026), сначала новые.
 /// DateTime не бывает const, поэтому список final.
 final mockSessions = <WorkoutSession>[

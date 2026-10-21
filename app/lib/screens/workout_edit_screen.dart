@@ -27,24 +27,27 @@ class WorkoutEditScreen extends StatelessWidget {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          // TextFormField используется ради initialValue: StatelessWidget не
-          // может хранить TextEditingController. Form и validator не нужны.
-          TextFormField(
-            initialValue: formatNumericDate(session?.date ?? DateTime.now()),
+          // Значения сессии показаны подсказками: контроллер пришлось бы
+          // создавать и освобождать (dispose) в State, а макету L2 он не нужен.
+          // Подпись всегда сверху, чтобы подсказка была видна до ввода.
+          TextField(
             keyboardType: TextInputType.datetime,
-            decoration: const InputDecoration(
+            decoration: InputDecoration(
               labelText: 'Дата',
-              prefixIcon: Icon(Icons.calendar_today_outlined),
+              hintText: formatNumericDate(session?.date ?? mockToday),
+              floatingLabelBehavior: FloatingLabelBehavior.always,
+              prefixIcon: const Icon(Icons.calendar_today_outlined),
             ),
           ),
           const SizedBox(height: 16),
-          TextFormField(
-            initialValue: session?.durationMin.toString(),
+          TextField(
             keyboardType: TextInputType.number,
-            decoration: const InputDecoration(
+            decoration: InputDecoration(
               labelText: 'Длительность',
+              hintText: '${session?.durationMin ?? 60}',
+              floatingLabelBehavior: FloatingLabelBehavior.always,
               suffixText: 'мин',
-              prefixIcon: Icon(Icons.timer_outlined),
+              prefixIcon: const Icon(Icons.timer_outlined),
             ),
           ),
           const SectionTitle('Упражнения', icon: Icons.fitness_center),
@@ -61,12 +64,12 @@ class WorkoutEditScreen extends StatelessWidget {
               ),
             ),
           const SectionTitle('Заметки', icon: Icons.sticky_note_2_outlined),
-          TextFormField(
-            initialValue: session?.notes,
+          TextField(
             minLines: 3,
             maxLines: 6,
-            decoration: const InputDecoration(
-              hintText: 'Рабочие веса, подходы, самочувствие',
+            decoration: InputDecoration(
+              hintText: session?.notes ?? 'Рабочие веса, подходы, самочувствие',
+              hintMaxLines: 6,
             ),
           ),
           const SizedBox(height: 24),

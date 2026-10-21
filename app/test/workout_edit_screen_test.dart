@@ -34,15 +34,21 @@ void main() {
     await pumpScreen(tester, const WorkoutEditScreen());
 
     expect(find.text('Новая тренировка'), findsOneWidget);
-    expect(find.widgetWithText(TextFormField, 'Дата'), findsOneWidget);
-    expect(find.widgetWithText(TextFormField, 'Длительность'), findsOneWidget);
+    expect(find.byType(TextFormField), findsNothing);
+    expect(find.widgetWithText(TextField, 'Дата'), findsOneWidget);
+    expect(find.widgetWithText(TextField, 'Длительность'), findsOneWidget);
+    // Новая сессия показывает зашитую демонстрационную дату, а не текущую.
+    expect(find.text(formatNumericDate(mockToday)), findsOneWidget);
+    expect(find.text('60'), findsOneWidget);
     expect(find.text('Упражнения'), findsOneWidget);
     await _scrollFormTo(tester, find.text('Сохранить'));
     expect(find.text('Заметки'), findsOneWidget);
     expect(find.text('Сохранить'), findsOneWidget);
   });
 
-  testWidgets('редактирование заполняет поля данными сессии', (tester) async {
+  testWidgets('редактирование показывает данные сессии в полях', (
+    tester,
+  ) async {
     final session = mockSessions.first;
     await pumpScreen(tester, WorkoutEditScreen(session: session));
 
@@ -92,7 +98,7 @@ void main() {
     useNarrowScreenWithKeyboard(tester);
     await pumpScreen(tester, WorkoutEditScreen(session: mockSessions[2]));
 
-    await tester.showKeyboard(find.widgetWithText(TextFormField, 'Дата'));
+    await tester.showKeyboard(find.widgetWithText(TextField, 'Дата'));
     await tester.pump();
     await _scrollFormTo(tester, find.text('Сохранить'));
 
