@@ -21,49 +21,67 @@ GoRouter createRouter({String initialLocation = '/login'}) {
     routes: [
       // Вход вне оболочки: на нём нет нижней панели.
       GoRoute(path: '/login', builder: (context, state) => const LoginScreen()),
-      // Промежуточное решение: общая панель для всех вкладок. Независимые
-      // стеки вкладок (StatefulShellRoute) — следующий шаг L3.
-      ShellRoute(
-        builder: (context, state, child) =>
-            HomeShell(location: state.uri.path, child: child),
-        routes: [
-          GoRoute(
-            path: '/exercises',
-            builder: (context, state) => const ExercisesScreen(),
+      // indexedStack держит все четыре вкладки в дереве: у каждой свой
+      // Navigator, поэтому стек и прокрутка сохраняются при переключении.
+      // Порядок веток совпадает с порядком кнопок нижней панели.
+      StatefulShellRoute.indexedStack(
+        builder: (context, state, navigationShell) =>
+            HomeShell(navigationShell: navigationShell),
+        branches: [
+          StatefulShellBranch(
             routes: [
               GoRoute(
-                path: ':id',
-                // В адресе только id; экран сам находит упражнение в mock.
-                builder: (context, state) => ExerciseDetailScreen(
-                  exerciseId: state.pathParameters['id']!,
-                ),
+                path: '/exercises',
+                builder: (context, state) => const ExercisesScreen(),
+                routes: [
+                  GoRoute(
+                    path: ':id',
+                    // В адресе только id; экран сам находит упражнение в mock.
+                    builder: (context, state) => ExerciseDetailScreen(
+                      exerciseId: state.pathParameters['id']!,
+                    ),
+                  ),
+                ],
               ),
             ],
           ),
-          GoRoute(
-            path: '/workouts',
-            builder: (context, state) => const WorkoutsScreen(),
+          StatefulShellBranch(
             routes: [
-              // new — отдельный адрес: редактирование требует сегмент /edit,
-              // поэтому «new» никогда не попадает в параметр id сессии.
               GoRoute(
-                path: 'new',
-                builder: (context, state) => const WorkoutEditScreen(),
-              ),
-              GoRoute(
-                path: ':id/edit',
-                builder: (context, state) =>
-                    WorkoutEditScreen(sessionId: state.pathParameters['id']),
+                path: '/workouts',
+                builder: (context, state) => const WorkoutsScreen(),
+                routes: [
+                  // new — отдельный адрес: редактирование требует сегмент
+                  // /edit, поэтому «new» никогда не попадает в параметр id.
+                  GoRoute(
+                    path: 'new',
+                    builder: (context, state) => const WorkoutEditScreen(),
+                  ),
+                  GoRoute(
+                    path: ':id/edit',
+                    builder: (context, state) => WorkoutEditScreen(
+                      sessionId: state.pathParameters['id'],
+                    ),
+                  ),
+                ],
               ),
             ],
           ),
-          GoRoute(
-            path: '/stats',
-            builder: (context, state) => const StatsScreen(),
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: '/stats',
+                builder: (context, state) => const StatsScreen(),
+              ),
+            ],
           ),
-          GoRoute(
-            path: '/profile',
-            builder: (context, state) => const ProfileScreen(),
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: '/profile',
+                builder: (context, state) => const ProfileScreen(),
+              ),
+            ],
           ),
         ],
       ),

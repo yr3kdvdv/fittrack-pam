@@ -42,7 +42,9 @@ class NotFoundScreen extends StatelessWidget {
                 style: theme.textTheme.titleMedium,
               ),
               const SizedBox(height: 16),
-              // go, а не pop: при прямом открытии адреса возвращаться некуда.
+              // go, а не pop: результат не зависит от истории. Даже при
+              // глубоком прямом адресе, где родительский список уже в стеке,
+              // go явно ведёт в безопасное место — список этой вкладки.
               FilledButton.tonal(
                 onPressed: () => context.go(backPath),
                 child: Text(backLabel),

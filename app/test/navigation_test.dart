@@ -21,6 +21,15 @@ Future<void> _openTab(WidgetTester tester, String label) async {
   await tester.pumpAndSettle();
 }
 
+/// Смещение вертикального списка видимой вкладки. Скрытые ветки
+/// indexedStack находятся в Offstage, и find их пропускает.
+double _scrollOffset(WidgetTester tester, Type listType) {
+  final scrollable = find
+      .descendant(of: find.byType(listType), matching: find.byType(Scrollable))
+      .first;
+  return tester.state<ScrollableState>(scrollable).position.pixels;
+}
+
 void main() {
   testWidgets('демонстрационный маршрут проходит все 7 экранов', (
     tester,
@@ -180,6 +189,76 @@ void main() {
     await tester.pumpAndSettle();
     expect(currentPath(router), '/login');
     expect(router.canPop(), isFalse);
+  });
+
+  testWidgets('у каждой вкладки свой стек: детали и форма ждут возврата', (
+    tester,
+  ) async {
+    final router = await pumpApp(tester, location: '/exercises');
+    final exercise = mockExercises.first;
+
+    await tester.tap(find.text(exercise.name));
+    await tester.pumpAndSettle();
+    expect(currentPath(router), '/exercises/${exercise.id}');
+
+    await _openTab(tester, 'Дневник');
+    await tester.tap(find.text('Новая тренировка'));
+    await tester.pumpAndSettle();
+    expect(currentPath(router), '/workouts/new');
+    expect(find.byType(NavigationBar), findsOneWidget);
+
+    // Возврат на вкладку показывает те же детали, а не корень каталога.
+    await _openTab(tester, 'Упражнения');
+    expect(currentPath(router), '/exercises/${exercise.id}');
+    expect(find.byType(ExerciseDetailScreen), findsOneWidget);
+    expect(find.byType(NavigationBar), findsOneWidget);
+
+    // Повторный выбор активной вкладки не сбрасывает её к корню.
+    await _openTab(tester, 'Упражнения');
+    expect(currentPath(router), '/exercises/${exercise.id}');
+
+    // Под деталями по-прежнему каталог.
+    await tester.pageBack();
+    await tester.pumpAndSettle();
+    expect(currentPath(router), '/exercises');
+    expect(find.byType(ExercisesScreen), findsOneWidget);
+
+    // Форма дневника тоже дождалась возврата, под ней — список сессий.
+    await _openTab(tester, 'Дневник');
+    expect(currentPath(router), '/workouts/new');
+    expect(find.byType(WorkoutEditScreen), findsOneWidget);
+    await tester.pageBack();
+    await tester.pumpAndSettle();
+    expect(currentPath(router), '/workouts');
+    expect(find.byType(WorkoutsScreen), findsOneWidget);
+  });
+
+  testWidgets('прокрутка каталога и дневника сохраняется между вкладками', (
+    tester,
+  ) async {
+    await pumpApp(tester, location: '/exercises');
+
+    await tester.drag(find.byType(CustomScrollView), const Offset(0, -300));
+    await tester.pumpAndSettle();
+    final exercisesOffset = _scrollOffset(tester, CustomScrollView);
+    expect(exercisesOffset, greaterThan(0));
+
+    await _openTab(tester, 'Дневник');
+    expect(_scrollOffset(tester, ListView), 0);
+    await tester.drag(find.byType(ListView), const Offset(0, -250));
+    await tester.pumpAndSettle();
+    final workoutsOffset = _scrollOffset(tester, ListView);
+    expect(workoutsOffset, greaterThan(0));
+
+    // Повторный выбор активной вкладки не возвращает список в начало.
+    await _openTab(tester, 'Дневник');
+    expect(_scrollOffset(tester, ListView), workoutsOffset);
+
+    await _openTab(tester, 'Упражнения');
+    expect(_scrollOffset(tester, CustomScrollView), exercisesOffset);
+
+    await _openTab(tester, 'Дневник');
+    expect(_scrollOffset(tester, ListView), workoutsOffset);
   });
 
   testWidgets('вкладки оболочки без overflow на узком экране с клавиатурой', (

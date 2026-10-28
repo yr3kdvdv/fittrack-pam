@@ -1,32 +1,24 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
-/// Оболочка с нижней навигацией. Выбранная вкладка вычисляется из адреса,
-/// поэтому собственного состояния у оболочки больше нет.
+/// Оболочка с нижней навигацией. Активную вкладку и стеки веток хранит
+/// go_router, поэтому собственного состояния у оболочки нет.
 class HomeShell extends StatelessWidget {
-  const HomeShell({super.key, required this.location, required this.child});
+  const HomeShell({super.key, required this.navigationShell});
 
-  /// Текущий путь, например /exercises/ex-01.
-  final String location;
-
-  /// Экран текущего маршрута внутри оболочки.
-  final Widget child;
-
-  static const _tabPaths = ['/exercises', '/workouts', '/stats', '/profile'];
-
-  int get _selectedIndex {
-    final index = _tabPaths.indexWhere(location.startsWith);
-    return index < 0 ? 0 : index;
-  }
+  /// Ветки StatefulShellRoute; сам виджет показывает активную из них.
+  final StatefulNavigationShell navigationShell;
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: child,
+      body: navigationShell,
       bottomNavigationBar: NavigationBar(
-        selectedIndex: _selectedIndex,
-        // go, а не push: вкладка заменяет текущий стек, а не копится поверх.
-        onDestinationSelected: (index) => context.go(_tabPaths[index]),
+        selectedIndex: navigationShell.currentIndex,
+        // goBranch возвращает ветку в её последнее место: открытые детали
+        // и прокрутка остаются. Повторный выбор активной вкладки тоже ничего
+        // не сбрасывает, поэтому initialLocation не передаётся.
+        onDestinationSelected: navigationShell.goBranch,
         destinations: const [
           NavigationDestination(
             icon: Icon(Icons.fitness_center_outlined),
