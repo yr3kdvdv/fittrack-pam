@@ -6,7 +6,8 @@ import '../data/mock_data.dart';
 import '../widgets/metric_card.dart';
 import '../widgets/section_title.dart';
 
-/// Профиль пользователя: личные данные, итоги и настройки (статично).
+/// Профиль пользователя: личные данные, итоги, настройки (статично)
+/// и выход с подтверждением.
 class ProfileScreen extends StatelessWidget {
   const ProfileScreen({super.key});
 
@@ -96,8 +97,9 @@ class ProfileScreen extends StatelessWidget {
                   secondary: const Icon(Icons.notifications_outlined),
                   title: const Text('Напоминания о тренировках'),
                   value: true,
-                  // Настройки начнут сохраняться вместе с состоянием на L4.
-                  onChanged: (_) {},
+                  // Хранить настройку негде до общего состояния L4, поэтому
+                  // переключатель не меняется, а честно сообщает об этом.
+                  onChanged: (_) => _showNotSavedYet(context),
                 ),
                 const ListTile(
                   leading: Icon(Icons.straighten),
@@ -109,15 +111,50 @@ class ProfileScreen extends StatelessWidget {
           ),
           const SizedBox(height: 24),
           OutlinedButton.icon(
-            // go заменяет весь стек вкладок экраном входа: сессии пользователя
-            // пока нет, а «Назад» не должен вернуть в приложение.
-            onPressed: () => context.go('/login'),
+            onPressed: () => _confirmLogout(context),
             icon: const Icon(Icons.logout),
             label: const Text('Выйти'),
           ),
         ],
       ),
     );
+  }
+
+  void _showNotSavedYet(BuildContext context) {
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        const SnackBar(content: Text('Настройка пока не сохраняется')),
+      );
+  }
+
+  Future<void> _confirmLogout(BuildContext context) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      // Кнопки закрывают диалог через его собственный dialogCtx: context
+      // профиля относится к странице под диалогом, а не к самому диалогу.
+      builder: (dialogCtx) => AlertDialog(
+        title: const Text('Выйти из профиля?'),
+        content: const Text('Чтобы продолжить, нужно будет снова войти.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogCtx, false),
+            child: const Text('Отмена'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(dialogCtx, true),
+            child: const Text('Выйти'),
+          ),
+        ],
+      ),
+    );
+    // Тап мимо диалога и системное «Назад» дают null — это тоже не выход.
+    // Пока диалог был открыт, экран мог исчезнуть, поэтому проверяем mounted.
+    if (ok == true && context.mounted) {
+      // go заменяет весь стек, вместе с оболочкой вкладок: «Назад» с входа
+      // не вернёт в приложение, а новый вход начнёт вкладки с корней.
+      context.go('/login');
+    }
   }
 }
 

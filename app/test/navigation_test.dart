@@ -21,6 +21,23 @@ Future<void> _openTab(WidgetTester tester, String label) async {
   await tester.pumpAndSettle();
 }
 
+/// Нажимает «Выйти» в профиле и подтверждает выход в диалоге.
+Future<void> _logOut(WidgetTester tester) async {
+  final button = find.widgetWithText(OutlinedButton, 'Выйти');
+  await tester.scrollUntilVisible(button, 200);
+  await tester.ensureVisible(button);
+  await tester.pumpAndSettle();
+  await tester.tap(button);
+  await tester.pumpAndSettle();
+  await tester.tap(
+    find.descendant(
+      of: find.byType(AlertDialog),
+      matching: find.widgetWithText(TextButton, 'Выйти'),
+    ),
+  );
+  await tester.pumpAndSettle();
+}
+
 /// Смещение вертикального списка видимой вкладки. Скрытые ветки
 /// indexedStack находятся в Offstage, и find их пропускает.
 double _scrollOffset(WidgetTester tester, Type listType) {
@@ -69,11 +86,7 @@ void main() {
     // 7. Профиль → выход на экран входа.
     await _openTab(tester, 'Профиль');
     expect(find.byType(ProfileScreen), findsOneWidget);
-    await tester.scrollUntilVisible(find.text('Выйти'), 200);
-    await tester.ensureVisible(find.text('Выйти'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Выйти'));
-    await tester.pumpAndSettle();
+    await _logOut(tester);
     expect(find.byType(LoginScreen), findsOneWidget);
     expect(find.byType(HomeShell), findsNothing);
   });
@@ -180,13 +193,54 @@ void main() {
     expect(find.byType(LoginScreen), findsNothing);
 
     await _openTab(tester, 'Профиль');
-    await tester.scrollUntilVisible(find.text('Выйти'), 200);
-    await tester.ensureVisible(find.text('Выйти'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Выйти'));
-    await tester.pumpAndSettle();
+    await _logOut(tester);
     expect(currentPath(router), '/login');
     expect(router.canPop(), isFalse);
+
+    // Системное «Назад» с входа не возвращает в профиль или оболочку.
+    await tester.binding.handlePopRoute();
+    await tester.pumpAndSettle();
+    expect(find.byType(LoginScreen), findsOneWidget);
+    expect(find.byType(HomeShell), findsNothing);
+  });
+
+  testWidgets('повторный вход начинает вкладки с чистых корней', (
+    tester,
+  ) async {
+    final router = await pumpApp(tester);
+    final exercise = mockExercises.first;
+
+    // Оставляем открытыми детали в каталоге и форму в дневнике.
+    await logIn(tester);
+    await tester.tap(find.text(exercise.name));
+    await tester.pumpAndSettle();
+    await _openTab(tester, 'Дневник');
+    await tester.tap(find.text('Новая тренировка'));
+    await tester.pumpAndSettle();
+    expect(currentPath(router), '/workouts/new');
+
+    await _openTab(tester, 'Профиль');
+    await _logOut(tester);
+    expect(find.byType(HomeShell), findsNothing);
+
+    // Оболочка была удалена вместе со стеками веток и создаётся заново.
+    await logIn(tester);
+    expect(currentPath(router), '/exercises');
+    expect(find.byType(ExercisesScreen), findsOneWidget);
+    expect(find.byType(ExerciseDetailScreen), findsNothing);
+    expect(router.canPop(), isFalse);
+
+    await _openTab(tester, 'Дневник');
+    expect(currentPath(router), '/workouts');
+    expect(find.byType(WorkoutsScreen), findsOneWidget);
+    expect(find.byType(WorkoutEditScreen), findsNothing);
+
+    // «Назад» не открывает ни вход, ни прежние экраны.
+    await _openTab(tester, 'Упражнения');
+    await tester.binding.handlePopRoute();
+    await tester.pumpAndSettle();
+    expect(find.byType(LoginScreen), findsNothing);
+    expect(find.byType(ExerciseDetailScreen), findsNothing);
   });
 
   testWidgets('у каждой вкладки свой стек: детали и форма ждут возврата', (
