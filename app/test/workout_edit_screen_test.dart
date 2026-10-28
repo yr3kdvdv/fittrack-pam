@@ -8,100 +8,263 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'test_helpers.dart';
 
-/// Прокручивает форму до [target]. Жест начинается у левого края списка:
-/// в центре экрана может оказаться многострочное поле «Заметки», которое
-/// само перехватывает вертикальную прокрутку.
-Future<void> _scrollFormTo(WidgetTester tester, Finder target) async {
-  final formList = find
-      .descendant(
-        of: find.byType(WorkoutEditScreen),
-        matching: find.byType(Scrollable),
-      )
-      .first;
-  for (var i = 0; i < 30 && target.evaluate().isEmpty; i++) {
-    final start = tester.getTopLeft(formList) + const Offset(6, 40);
-    await tester.dragFrom(start, const Offset(0, -200));
-    await tester.pump();
-  }
+Finder _field(String label) => find.widgetWithText(TextFormField, label);
+
+String _fieldText(WidgetTester tester, String label) =>
+    tester.widget<TextFormField>(_field(label)).controller!.text;
+
+bool _isChecked(WidgetTester tester, Exercise exercise) => tester
+    .widget<Checkbox>(
+      find.descendant(
+        of: find.widgetWithText(ExerciseTile, exercise.name),
+        matching: find.byType(Checkbox),
+      ),
+    )
+    .value!;
+
+Future<void> _tapVisible(WidgetTester tester, Finder target) async {
+  // После enterText поле в следующем кадре само прокручивает к курсору;
+  // без этого ожидания оно отменило бы ensureVisible ниже.
+  await tester.pumpAndSettle();
   await tester.ensureVisible(target);
-  await tester.pump();
+  await tester.pumpAndSettle();
+  await tester.tap(target);
+  await tester.pumpAndSettle();
 }
 
+Future<void> _save(WidgetTester tester) =>
+    _tapVisible(tester, find.text('Сохранить'));
+
+/// Снимок всех mock-сессий строками: списки сравниваются по содержимому.
+List<String> _snapshotSessions() => [
+  for (final s in mockSessions)
+    '${s.id}|${s.date}|${s.exerciseIds.join(',')}|${s.durationMin}|${s.notes}',
+];
+
 void main() {
-  testWidgets('форма: дата, длительность, упражнения, заметки, сохранить', (
+  group('правила полей', () {
+    test('дата: существующий день в формате ДД.ММ.ГГГГ', () {
+      expect(validateWorkoutDate(''), 'Укажите дату');
+      expect(validateWorkoutDate('   '), 'Укажите дату');
+      for (final wrongFormat in ['1.2.2026', '17.10.26', '2026.10.17', '..']) {
+        expect(
+          validateWorkoutDate(wrongFormat),
+          'Введите дату в формате ДД.ММ.ГГГГ',
+          reason: wrongFormat,
+        );
+      }
+      for (final missing in [
+        '31.02.2026',
+        '29.02.2026',
+        '00.10.2026',
+        '17.13.2026',
+      ]) {
+        expect(
+          validateWorkoutDate(missing),
+          'Такой даты нет в календаре',
+          reason: missing,
+        );
+      }
+      // 2028 — високосный год, 29 февраля существует.
+      expect(validateWorkoutDate('29.02.2028'), isNull);
+      expect(validateWorkoutDate('17.10.2026'), isNull);
+    });
+
+    test('длительность: положительное целое число минут', () {
+      expect(validateWorkoutDuration(''), 'Укажите длительность в минутах');
+      expect(validateWorkoutDuration('0'), 'Длительность должна быть больше 0');
+      expect(
+        validateWorkoutDuration('000'),
+        'Длительность должна быть больше 0',
+      );
+      // Больше максимального int: tryParse возвращает null без исключения.
+      expect(
+        validateWorkoutDuration('99999999999999999999'),
+        'Слишком большое число',
+      );
+      expect(validateWorkoutDuration('45'), isNull);
+    });
+  });
+
+  testWidgets('новая тренировка: текущая дата, пустые длительность и выбор', (
     tester,
   ) async {
     await pumpScreen(tester, const WorkoutEditScreen());
 
     expect(find.text('Новая тренировка'), findsOneWidget);
-    expect(find.byType(TextFormField), findsNothing);
-    expect(find.widgetWithText(TextField, 'Дата'), findsOneWidget);
-    expect(find.widgetWithText(TextField, 'Длительность'), findsOneWidget);
-    // Новая сессия показывает зашитую демонстрационную дату, а не текущую.
-    expect(find.text(formatNumericDate(mockToday)), findsOneWidget);
-    expect(find.text('60'), findsOneWidget);
-    expect(find.text('Упражнения'), findsOneWidget);
-    await _scrollFormTo(tester, find.text('Сохранить'));
-    expect(find.text('Заметки'), findsOneWidget);
-    expect(find.text('Сохранить'), findsOneWidget);
+    expect(find.byType(TextFormField), findsNWidgets(3));
+    expect(_fieldText(tester, 'Дата'), formatNumericDate(mockToday));
+    expect(_fieldText(tester, 'Длительность'), isEmpty);
+    for (final exercise in mockExercises) {
+      expect(_isChecked(tester, exercise), isFalse, reason: exercise.id);
+    }
+
+    // next с даты переводит фокус на длительность.
+    await tester.showKeyboard(_field('Дата'));
+    await tester.testTextInput.receiveAction(TextInputAction.next);
+    await tester.pump();
+    final durationInput = tester.widget<EditableText>(
+      find.descendant(
+        of: _field('Длительность'),
+        matching: find.byType(EditableText),
+      ),
+    );
+    expect(durationInput.focusNode.hasFocus, isTrue);
   });
 
-  testWidgets('редактирование показывает данные сессии в полях', (
-    tester,
-  ) async {
+  testWidgets('редактирование заполняет поля данными сессии', (tester) async {
     final session = mockSessions.first;
     await pumpScreen(tester, WorkoutEditScreen(sessionId: session.id));
 
     expect(find.text('Редактирование тренировки'), findsOneWidget);
-    expect(find.text(formatNumericDate(session.date)), findsOneWidget);
-    expect(find.text('${session.durationMin}'), findsOneWidget);
-
-    final firstExercise = exerciseById(session.exerciseIds.first);
-    await _scrollFormTo(tester, find.text(firstExercise.name));
-    final checkbox = tester.widget<Checkbox>(
-      find.descendant(
-        of: find.widgetWithText(ExerciseTile, firstExercise.name),
-        matching: find.byType(Checkbox),
-      ),
-    );
-    expect(checkbox.value, isTrue);
-
-    await _scrollFormTo(tester, find.text(session.notes));
+    expect(_fieldText(tester, 'Дата'), formatNumericDate(session.date));
+    expect(_fieldText(tester, 'Длительность'), '${session.durationMin}');
     expect(find.text(session.notes), findsOneWidget);
+    for (final exercise in mockExercises) {
+      expect(
+        _isChecked(tester, exercise),
+        session.exerciseIds.contains(exercise.id),
+        reason: exercise.id,
+      );
+    }
   });
 
-  testWidgets('дневник открывает новую и редактируемую тренировку', (
+  testWidgets('фильтры не пропускают буквы в дату и длительность', (
     tester,
   ) async {
-    await pumpApp(tester, location: '/workouts');
+    await pumpScreen(tester, const WorkoutEditScreen());
 
-    await tester.tap(find.text('Новая тренировка'));
-    await tester.pumpAndSettle();
-    expect(find.byType(WorkoutEditScreen), findsOneWidget);
-    await tester.pageBack();
-    await tester.pumpAndSettle();
+    await tester.enterText(_field('Длительность'), '4a5 мин');
+    await tester.enterText(_field('Дата'), '17/10/2026');
+    await tester.pump();
 
-    await tester.tap(find.text(formatLongDate(mockSessions.first.date)));
-    await tester.pumpAndSettle();
-    expect(find.text('Редактирование тренировки'), findsOneWidget);
-
-    await _scrollFormTo(tester, find.text('Сохранить'));
-    await tester.tap(find.text('Сохранить'));
-    await tester.pumpAndSettle();
-    expect(find.byType(WorkoutEditScreen), findsNothing);
-    expect(find.byType(WorkoutsScreen), findsOneWidget);
+    expect(_fieldText(tester, 'Длительность'), '45');
+    expect(_fieldText(tester, 'Дата'), '17102026');
   });
 
-  testWidgets('форма без overflow на узком экране с клавиатурой', (
+  testWidgets('ошибки под полями, форма остаётся открытой; выбор снимает '
+      'ошибку упражнений', (tester) async {
+    await pumpScreen(tester, const WorkoutEditScreen());
+
+    await tester.enterText(_field('Дата'), '31.02.2026');
+    await _save(tester);
+
+    expect(find.byType(WorkoutEditScreen), findsOneWidget);
+    expect(find.text('Такой даты нет в календаре'), findsOneWidget);
+    expect(find.text('Укажите длительность в минутах'), findsOneWidget);
+    expect(find.text('Выберите хотя бы одно упражнение'), findsOneWidget);
+    expect(find.byType(SnackBar), findsNothing);
+
+    // После первой попытки ошибки пересчитываются сразу при исправлении.
+    await _tapVisible(tester, find.text(mockExercises[3].name));
+    expect(_isChecked(tester, mockExercises[3]), isTrue);
+    expect(find.text('Выберите хотя бы одно упражнение'), findsNothing);
+
+    await tester.enterText(_field('Дата'), '29.02.2028');
+    await tester.pump();
+    expect(find.text('Такой даты нет в календаре'), findsNothing);
+  });
+
+  testWidgets('узкий экран с клавиатурой: первая ошибка видна, без overflow', (
     tester,
   ) async {
     useNarrowScreenWithKeyboard(tester);
-    await pumpScreen(tester, WorkoutEditScreen(sessionId: mockSessions[2].id));
+    await pumpScreen(tester, const WorkoutEditScreen());
 
-    await tester.showKeyboard(find.widgetWithText(TextField, 'Дата'));
+    await tester.showKeyboard(_field('Дата'));
     await tester.pump();
-    await _scrollFormTo(tester, find.text('Сохранить'));
+    // Кнопка внизу формы: длительность к этому моменту ушла за верх экрана.
+    await _save(tester);
 
     expect(tester.takeException(), isNull);
+    expect(
+      find.text('Укажите длительность в минутах').hitTestable(),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('смена sessionId в том же State загружает другую сессию', (
+    tester,
+  ) async {
+    final first = mockSessions[0];
+    final second = mockSessions[1];
+    await pumpScreen(tester, WorkoutEditScreen(sessionId: first.id));
+    final state = tester.state(find.byType(WorkoutEditScreen));
+
+    await tester.enterText(_field('Длительность'), '');
+    await _save(tester);
+    expect(find.text('Укажите длительность в минутах'), findsOneWidget);
+
+    await pumpScreen(tester, WorkoutEditScreen(sessionId: second.id));
+    await tester.pump();
+
+    expect(tester.state(find.byType(WorkoutEditScreen)), same(state));
+    expect(_fieldText(tester, 'Дата'), formatNumericDate(second.date));
+    expect(_fieldText(tester, 'Длительность'), '${second.durationMin}');
+    expect(find.text(second.notes), findsOneWidget);
+    expect(find.text('Укажите длительность в минутах'), findsNothing);
+    for (final exercise in mockExercises) {
+      expect(
+        _isChecked(tester, exercise),
+        second.exerciseIds.contains(exercise.id),
+        reason: exercise.id,
+      );
+    }
+  });
+
+  testWidgets('новая тренировка: SnackBar, возврат в дневник, mock тот же', (
+    tester,
+  ) async {
+    final before = _snapshotSessions();
+    await pumpApp(tester, location: '/workouts');
+    await tester.tap(find.text('Новая тренировка'));
+    await tester.pumpAndSettle();
+
+    await tester.enterText(_field('Длительность'), '45');
+    await _tapVisible(tester, find.text(mockExercises.first.name));
+    await _save(tester);
+
+    // Закрытие формы освобождает контроллеры без исключений.
+    expect(tester.takeException(), isNull);
+    expect(find.byType(WorkoutEditScreen), findsNothing);
+    expect(find.byType(WorkoutsScreen), findsOneWidget);
+    expect(
+      find.text(
+        'Тренировка ${formatNumericDate(mockToday)} сохранена: '
+        '45 мин, упражнений: 1',
+      ),
+      findsOneWidget,
+    );
+    expect(_snapshotSessions(), before);
+  });
+
+  testWidgets('редактирование: SnackBar, возврат, mock-сессия не изменилась', (
+    tester,
+  ) async {
+    final before = _snapshotSessions();
+    final session = mockSessions.first;
+    await pumpApp(tester, location: '/workouts/${session.id}/edit');
+
+    await tester.enterText(_field('Длительность'), '90');
+    await tester.enterText(_field('Дата'), '16.10.2026');
+    // Снимаем одно выбранное упражнение и добавляем невыбранное.
+    await _tapVisible(
+      tester,
+      find.text(exerciseById(session.exerciseIds.first).name),
+    );
+    await _tapVisible(tester, find.text(mockExercises.last.name));
+    await tester.enterText(find.text(session.notes), 'Другие заметки');
+    await _save(tester);
+
+    expect(tester.takeException(), isNull);
+    expect(find.byType(WorkoutsScreen), findsOneWidget);
+    expect(
+      find.text(
+        'Тренировка 16.10.2026 сохранена: 1 ч 30 мин, упражнений: '
+        '${session.exerciseIds.length}',
+      ),
+      findsOneWidget,
+    );
+    expect(_snapshotSessions(), before);
   });
 }
