@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
-
-import 'home_shell.dart';
+import 'package:go_router/go_router.dart';
 
 /// Вход / регистрация. На L2 экран только визуальный: без Form, проверки
 /// полей и логики аутентификации — это материал L3 и L5.
@@ -68,11 +67,8 @@ class LoginScreen extends StatelessWidget {
                   ),
                   const SizedBox(height: 24),
                   FilledButton(
-                    // Единственное действие — переход в приложение для демонстрации.
-                    onPressed: () => Navigator.pushReplacement(
-                      context,
-                      MaterialPageRoute(builder: (_) => const HomeShell()),
-                    ),
+                    // go заменяет стек: «Назад» после входа не вернёт на вход.
+                    onPressed: () => context.go('/exercises'),
                     child: const Text('Войти'),
                   ),
                   const SizedBox(height: 8),

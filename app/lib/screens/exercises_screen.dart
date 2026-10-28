@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 
 import '../data/mock_data.dart';
 import '../widgets/exercise_tile.dart';
 import '../widgets/muscle_group_avatar.dart';
-import 'exercise_detail_screen.dart';
 
 /// Каталог упражнений. Поиск и фильтры на L2 только визуальные:
 /// работать они начнут вместе с состоянием на L4.
@@ -39,12 +39,8 @@ class ExercisesScreen extends StatelessWidget {
                 return ExerciseTile(
                   exercise: exercise,
                   trailing: const Icon(Icons.chevron_right),
-                  onTap: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => ExerciseDetailScreen(exercise: exercise),
-                    ),
-                  ),
+                  // push кладёт детали поверх каталога, «Назад» вернёт к списку.
+                  onTap: () => context.push('/exercises/${exercise.id}'),
                 );
               },
             ),

@@ -1,20 +1,24 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 
-import 'screens/login_screen.dart';
+import 'router.dart';
 import 'theme.dart';
 
 void main() => runApp(const FitTrackApp());
 
 class FitTrackApp extends StatelessWidget {
-  const FitTrackApp({super.key});
+  /// [router] передают только тесты; приложение использует общий [appRouter].
+  const FitTrackApp({super.key, this.router});
+
+  final GoRouter? router;
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
+    return MaterialApp.router(
       title: 'FitTrack',
       debugShowCheckedModeBanner: false,
       theme: buildFitTrackTheme(),
-      home: const LoginScreen(),
+      routerConfig: router ?? appRouter,
     );
   }
 }

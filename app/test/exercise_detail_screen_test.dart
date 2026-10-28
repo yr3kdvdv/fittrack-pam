@@ -13,7 +13,7 @@ void main() {
     tester,
   ) async {
     final exercise = mockExercises.first;
-    await pumpScreen(tester, ExerciseDetailScreen(exercise: exercise));
+    await pumpScreen(tester, ExerciseDetailScreen(exerciseId: exercise.id));
 
     expect(find.text(exercise.name), findsOneWidget);
     expect(find.widgetWithText(Chip, exercise.muscleGroup), findsOneWidget);
@@ -26,7 +26,7 @@ void main() {
   testWidgets('каталог открывает детали, «Назад» возвращает в каталог', (
     tester,
   ) async {
-    await pumpScreen(tester, const ExercisesScreen());
+    await pumpApp(tester, location: '/exercises');
 
     await tester.tap(find.text(mockExercises.first.name));
     await tester.pumpAndSettle();
@@ -40,7 +40,7 @@ void main() {
 
   testWidgets('длинное название без overflow на узком экране', (tester) async {
     useNarrowScreenWithKeyboard(tester);
-    await pumpScreen(tester, ExerciseDetailScreen(exercise: longExercise));
+    await pumpScreen(tester, ExerciseDetailScreen(exerciseId: longExercise.id));
 
     await tester.scrollUntilVisible(
       find.text(exerciseTechnique[longExercise.id]!.last),

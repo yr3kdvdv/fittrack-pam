@@ -1,20 +1,37 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 
 import '../data/formatters.dart';
 import '../data/mock_data.dart';
 import '../widgets/exercise_tile.dart';
 import '../widgets/section_title.dart';
+import 'not_found_screen.dart';
 
-/// Форма новой тренировки или редактирования существующей (если передана
-/// [session]). Макет L2: без Form, валидации и сохранения — это L3/L4.
+/// Форма новой тренировки (/workouts/new) или редактирования существующей
+/// (/workouts/:id/edit). Получает только [sessionId] и сама находит сессию.
+/// Пока макет: без Form, валидации и сохранения.
 class WorkoutEditScreen extends StatelessWidget {
-  const WorkoutEditScreen({super.key, this.session});
+  const WorkoutEditScreen({super.key, this.sessionId});
 
-  final WorkoutSession? session;
+  /// null — новая тренировка.
+  final String? sessionId;
 
   @override
   Widget build(BuildContext context) {
-    final session = this.session;
+    final sessionId = this.sessionId;
+    final session = sessionId == null
+        ? null
+        : mockSessions.where((s) => s.id == sessionId).firstOrNull;
+    // id есть, но такой сессии нет — не подменяем её пустой новой формой.
+    if (sessionId != null && session == null) {
+      return const NotFoundScreen(
+        title: 'Редактирование тренировки',
+        message: 'Тренировка не найдена',
+        backLabel: 'К дневнику',
+        backPath: '/workouts',
+      );
+    }
+
     final selectedIds = session?.exerciseIds ?? const <String>[];
 
     return Scaffold(
@@ -75,7 +92,7 @@ class WorkoutEditScreen extends StatelessWidget {
           const SizedBox(height: 24),
           FilledButton.icon(
             // Данные не сохраняются: кнопка только возвращает на предыдущий экран.
-            onPressed: () => Navigator.pop(context),
+            onPressed: () => context.pop(),
             icon: const Icon(Icons.check),
             label: const Text('Сохранить'),
           ),

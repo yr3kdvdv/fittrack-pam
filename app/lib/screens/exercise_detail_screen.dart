@@ -3,15 +3,29 @@ import 'package:flutter/material.dart';
 import '../data/mock_data.dart';
 import '../widgets/muscle_group_avatar.dart';
 import '../widgets/section_title.dart';
+import 'not_found_screen.dart';
 
 /// Карточка упражнения: иллюстрация, группа мышц, описание и техника.
+/// Получает из адреса только id и сама находит упражнение в mock-данных.
 class ExerciseDetailScreen extends StatelessWidget {
-  const ExerciseDetailScreen({super.key, required this.exercise});
+  const ExerciseDetailScreen({super.key, required this.exerciseId});
 
-  final Exercise exercise;
+  final String exerciseId;
 
   @override
   Widget build(BuildContext context) {
+    // where + firstOrNull вместо exerciseById: неизвестный id даёт null,
+    // а не исключение StateError.
+    final exercise = mockExercises.where((e) => e.id == exerciseId).firstOrNull;
+    if (exercise == null) {
+      return const NotFoundScreen(
+        title: 'Упражнение',
+        message: 'Упражнение не найдено',
+        backLabel: 'К каталогу',
+        backPath: '/exercises',
+      );
+    }
+
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
     final steps = exerciseTechnique[exercise.id] ?? const <String>[];

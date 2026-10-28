@@ -21,7 +21,7 @@ void main() {
   });
 
   testWidgets('«Выйти» возвращает на экран входа', (tester) async {
-    await pumpScreen(tester, const ProfileScreen());
+    await pumpApp(tester, location: '/profile');
 
     await tester.scrollUntilVisible(find.text('Выйти'), 200);
     await tester.ensureVisible(find.text('Выйти'));

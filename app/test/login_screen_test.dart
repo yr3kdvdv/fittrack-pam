@@ -1,4 +1,3 @@
-import 'package:fittrack/main.dart';
 import 'package:fittrack/screens/home_shell.dart';
 import 'package:fittrack/screens/login_screen.dart';
 import 'package:flutter/material.dart';
@@ -10,7 +9,7 @@ void main() {
   testWidgets('вход: два поля, скрытый пароль и кнопка «Войти»', (
     tester,
   ) async {
-    await tester.pumpWidget(const FitTrackApp());
+    await pumpApp(tester);
 
     expect(find.byType(LoginScreen), findsOneWidget);
     expect(find.byType(TextField), findsNWidgets(2));
@@ -23,11 +22,12 @@ void main() {
   });
 
   testWidgets('«Войти» заменяет вход главной оболочкой', (tester) async {
-    await tester.pumpWidget(const FitTrackApp());
+    final router = await pumpApp(tester);
 
     await tester.tap(find.text('Войти'));
     await tester.pumpAndSettle();
 
+    expect(currentPath(router), '/exercises');
     expect(find.byType(HomeShell), findsOneWidget);
     expect(find.byType(LoginScreen), findsNothing);
     expect(find.byType(NavigationBar), findsOneWidget);

@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 
 import '../data/formatters.dart';
 import '../data/mock_data.dart';
 import '../widgets/metric_card.dart';
 import '../widgets/section_title.dart';
-import 'login_screen.dart';
 
 /// Профиль пользователя: личные данные, итоги и настройки (статично).
 class ProfileScreen extends StatelessWidget {
@@ -109,11 +109,9 @@ class ProfileScreen extends StatelessWidget {
           ),
           const SizedBox(height: 24),
           OutlinedButton.icon(
-            // Выход только возвращает на экран входа: сессии пользователя пока нет.
-            onPressed: () => Navigator.pushReplacement(
-              context,
-              MaterialPageRoute(builder: (_) => const LoginScreen()),
-            ),
+            // go заменяет весь стек вкладок экраном входа: сессии пользователя
+            // пока нет, а «Назад» не должен вернуть в приложение.
+            onPressed: () => context.go('/login'),
             icon: const Icon(Icons.logout),
             label: const Text('Выйти'),
           ),

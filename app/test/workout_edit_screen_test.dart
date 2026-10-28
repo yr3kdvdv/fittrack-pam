@@ -50,7 +50,7 @@ void main() {
     tester,
   ) async {
     final session = mockSessions.first;
-    await pumpScreen(tester, WorkoutEditScreen(session: session));
+    await pumpScreen(tester, WorkoutEditScreen(sessionId: session.id));
 
     expect(find.text('Редактирование тренировки'), findsOneWidget);
     expect(find.text(formatNumericDate(session.date)), findsOneWidget);
@@ -73,7 +73,7 @@ void main() {
   testWidgets('дневник открывает новую и редактируемую тренировку', (
     tester,
   ) async {
-    await pumpScreen(tester, const WorkoutsScreen());
+    await pumpApp(tester, location: '/workouts');
 
     await tester.tap(find.text('Новая тренировка'));
     await tester.pumpAndSettle();
@@ -96,7 +96,7 @@ void main() {
     tester,
   ) async {
     useNarrowScreenWithKeyboard(tester);
-    await pumpScreen(tester, WorkoutEditScreen(session: mockSessions[2]));
+    await pumpScreen(tester, WorkoutEditScreen(sessionId: mockSessions[2].id));
 
     await tester.showKeyboard(find.widgetWithText(TextField, 'Дата'));
     await tester.pump();

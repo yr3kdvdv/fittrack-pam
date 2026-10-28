@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 
 import '../data/mock_data.dart';
 import '../widgets/session_card.dart';
-import 'workout_edit_screen.dart';
 
 /// Дневник тренировок. Сессии идут по датам, сначала самые новые:
 /// последняя тренировка видна сразу без прокрутки.
@@ -22,22 +22,16 @@ class WorkoutsScreen extends StatelessWidget {
           final session = mockSessions[index];
           return SessionCard(
             session: session,
-            onTap: () => _openForm(context, session),
+            // В адрес передаётся только id; форма сама найдёт сессию.
+            onTap: () => context.push('/workouts/${session.id}/edit'),
           );
         },
       ),
       floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => _openForm(context, null),
+        onPressed: () => context.push('/workouts/new'),
         icon: const Icon(Icons.add),
         label: const Text('Новая тренировка'),
       ),
-    );
-  }
-
-  void _openForm(BuildContext context, WorkoutSession? session) {
-    Navigator.push(
-      context,
-      MaterialPageRoute(builder: (_) => WorkoutEditScreen(session: session)),
     );
   }
 }
