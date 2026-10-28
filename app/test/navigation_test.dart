@@ -38,8 +38,7 @@ void main() {
 
     // 1. Вход → оболочка с каталогом.
     expect(find.byType(LoginScreen), findsOneWidget);
-    await tester.tap(find.text('Войти'));
-    await tester.pumpAndSettle();
+    await logIn(tester);
     expect(find.byType(HomeShell), findsOneWidget);
     expect(currentPath(router), '/exercises');
 
@@ -175,8 +174,7 @@ void main() {
   ) async {
     final router = await pumpApp(tester);
 
-    await tester.tap(find.text('Войти'));
-    await tester.pumpAndSettle();
+    await logIn(tester);
     // go заменил стек: под каталогом нет экрана входа.
     expect(router.canPop(), isFalse);
     expect(find.byType(LoginScreen), findsNothing);

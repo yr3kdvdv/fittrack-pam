@@ -26,6 +26,22 @@ Future<GoRouter> pumpApp(
   return router;
 }
 
+/// Заполняет форму входа и нажимает «Войти». По умолчанию данные валидны;
+/// любые другие правдоподобные значения тоже подходят — аккаунтов нет.
+Future<void> logIn(
+  WidgetTester tester, {
+  String email = 'student@example.com',
+  String password = 'secret1',
+}) async {
+  await tester.enterText(find.widgetWithText(TextFormField, 'E-mail'), email);
+  await tester.enterText(
+    find.widgetWithText(TextFormField, 'Пароль'),
+    password,
+  );
+  await tester.tap(find.widgetWithText(FilledButton, 'Войти'));
+  await tester.pumpAndSettle();
+}
+
 /// Путь верхнего экрана, например /exercises/ex-01.
 String currentPath(GoRouter router) => router.state.uri.path;
 
