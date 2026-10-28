@@ -183,6 +183,30 @@ void main() {
     );
   });
 
+  testWidgets('с низа формы первая ошибка видна вместе с подписью поля', (
+    tester,
+  ) async {
+    useNarrowScreenWithKeyboard(tester);
+    await pumpScreen(tester, const WorkoutEditScreen());
+
+    await tester.enterText(_field('Дата'), '31.02.2026');
+    await tester.enterText(_field('Длительность'), '0');
+    // _save сначала прокручивает к кнопке: дата уходит далеко за верх экрана.
+    await _save(tester);
+
+    final viewport = tester.getRect(find.byType(SingleChildScrollView));
+    final label = tester.getRect(
+      find.descendant(of: _field('Дата'), matching: find.text('Дата')),
+    );
+    final error = tester.getRect(find.text('Такой даты нет в календаре'));
+    // Плавающая подпись рамки выступает над полем; она не должна касаться
+    // верхнего края прокрутки под AppBar.
+    expect(label.top, greaterThan(viewport.top));
+    expect(error.bottom, lessThanOrEqualTo(viewport.bottom));
+    expect(find.text('Длительность должна быть больше 0'), findsOneWidget);
+    expect(find.text('Выберите хотя бы одно упражнение'), findsOneWidget);
+  });
+
   testWidgets('смена sessionId в том же State загружает другую сессию', (
     tester,
   ) async {

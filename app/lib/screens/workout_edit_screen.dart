@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 
@@ -138,15 +139,37 @@ class _WorkoutEditScreenState extends State<WorkoutEditScreen> {
   /// Кнопка «Сохранить» внизу длинной формы: ошибка в начале может оказаться
   /// за экраном, поэтому прокручиваем к первому полю с ошибкой.
   void _showFirstError() {
-    for (final key in [_dateKey, _durationKey, _exercisesKey]) {
-      if (key.currentState?.hasError ?? false) {
-        Scrollable.ensureVisible(
-          key.currentContext!,
-          duration: const Duration(milliseconds: 300),
-        );
-        return;
+    // Тексты ошибок появятся только в следующем кадре и сдвинут поля ниже;
+    // позицию считаем после этой раскладки, иначе цель прокрутки устареет.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      for (final key in [_dateKey, _durationKey, _exercisesKey]) {
+        if (key.currentState?.hasError ?? false) {
+          _scrollToField(key.currentContext!);
+          return;
+        }
       }
-    }
+    });
+  }
+
+  /// Как ensureVisible с alignment 0, но с отступом сверху: плавающая подпись
+  /// рамки выступает над полем и иначе обрезалась бы краем под AppBar.
+  void _scrollToField(BuildContext fieldContext) {
+    final field = fieldContext.findRenderObject()!;
+    final position = Scrollable.of(fieldContext).position;
+    final fieldTop = RenderAbstractViewport.of(field)
+        .getOffsetToReveal(field, 0)
+        .offset;
+    // 16 — тот же отступ, что у прокрутки вокруг формы.
+    final target = (fieldTop - 16).clamp(
+      position.minScrollExtent,
+      position.maxScrollExtent,
+    );
+    position.animateTo(
+      target,
+      duration: const Duration(milliseconds: 300),
+      curve: Curves.ease,
+    );
   }
 
   @override
