@@ -105,6 +105,7 @@ class _WorkoutEditScreenState extends State<WorkoutEditScreen> {
     if (oldWidget.sessionId != widget.sessionId) {
       _submitted = false;
       _filled = false;
+      _shown = false;
       // reset очищает ошибки и текст полей; новые значения ставит _fillOnce.
       _formKey.currentState?.reset();
       _fillOnce();
@@ -156,6 +157,14 @@ class _WorkoutEditScreenState extends State<WorkoutEditScreen> {
 
   Future<void> _save() async {
     if (_busy) return;
+    // Та же защита, что у выключенной кнопки: не пишем поверх устаревших
+    // данных, пока пользователь не нажал «Повторить».
+    final workoutsState = context.read<WorkoutsModel>();
+    final exercisesState = context.read<ExercisesModel>();
+    if (_dependencyError(workoutsState, exercisesState) != null ||
+        _dependencyLoading(workoutsState, exercisesState)) {
+      return;
+    }
     if (!_formKey.currentState!.validate()) {
       setState(() => _submitted = true);
       _showFirstError();
@@ -314,19 +323,86 @@ class _WorkoutEditScreenState extends State<WorkoutEditScreen> {
     context.read<ExercisesModel>().load();
   }
 
-  /// Экран вместо формы, пока для неё нет данных; null — форму можно
-  /// показывать. Как только форма показана, перезагрузки её не прячут:
-  /// иначе spinner на месте формы сбросил бы ошибки и прокрутку.
+  /// Форма уже была показана пользователю: в полях может быть черновик.
+  bool _shown = false;
+
+  /// Текущая ошибка любой из моделей, на которых стоит форма: каталог даёт
+  /// список упражнений, дневник принимает сохранение. Кеш прошлой удачной
+  /// загрузки ошибку не отменяет.
+  String? _dependencyError(WorkoutsModel w, ExercisesModel e) =>
+      w.error ?? e.error;
+
+  bool _dependencyLoading(WorkoutsModel w, ExercisesModel e) =>
+      w.isLoading || e.isLoading;
+
+  /// Экран вместо формы, пока она ещё не показана; null — форму можно
+  /// показывать. Свежая форма честно проходит триаду по текущему состоянию
+  /// моделей. Показанную форму перезагрузки не прячут: иначе spinner на её
+  /// месте сбросил бы черновик, ошибки полей и прокрутку.
   Widget? _stateView(WorkoutsModel workouts, ExercisesModel exercises) {
-    final needsSession = _editing && !_filled;
-    if (needsSession || !exercises.hasData) {
-      if ((needsSession && workouts.isLoading) || exercises.isLoading) {
-        return const Center(child: CircularProgressIndicator());
+    if (_shown) return null;
+    if (_dependencyLoading(workouts, exercises) ||
+        !exercises.hasData ||
+        !_filled) {
+      // !_filled без загрузки и ошибки — сессии нет, это ловит sessionGone.
+      final error = _dependencyError(workouts, exercises);
+      if (error != null && !_dependencyLoading(workouts, exercises)) {
+        return ErrorView(message: error, onRetry: _reload);
       }
-      final error = (needsSession ? workouts.error : null) ?? exercises.error;
-      if (error != null) return ErrorView(message: error, onRetry: _reload);
+      return const Center(child: CircularProgressIndicator());
     }
+    final error = _dependencyError(workouts, exercises);
+    if (error != null) return ErrorView(message: error, onRetry: _reload);
     return null;
+  }
+
+  /// Над показанной формой: данные устарели (ошибка) или обновляются.
+  /// Поля не трогаются; сохранение ждёт успешного «Повторить», чтобы после
+  /// pop дневник не остался на старом экране ошибки.
+  Widget? _staleBanner(WorkoutsModel workouts, ExercisesModel exercises) {
+    if (_dependencyLoading(workouts, exercises)) {
+      return const Padding(
+        padding: EdgeInsets.only(bottom: 16),
+        child: LinearProgressIndicator(),
+      );
+    }
+    final error = _dependencyError(workouts, exercises);
+    if (error == null) return null;
+    final theme = Theme.of(context);
+    return Card(
+      color: theme.colorScheme.errorContainer,
+      margin: const EdgeInsets.only(bottom: 16),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              error,
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: theme.colorScheme.onErrorContainer,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Введённые данные сохранены. Обновите данные, чтобы сохранить '
+              'тренировку.',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onErrorContainer,
+              ),
+            ),
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton.icon(
+                onPressed: _reload,
+                icon: const Icon(Icons.refresh),
+                label: const Text('Повторить'),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   @override
@@ -361,6 +437,12 @@ class _WorkoutEditScreenState extends State<WorkoutEditScreen> {
     }
 
     final theme = Theme.of(context);
+    // С этого кадра в полях может появиться черновик пользователя. Поле, а
+    // не setState: оно влияет только на следующие сборки, не на эту.
+    _shown = true;
+    final banner = _staleBanner(workouts, exercises);
+    // Сохранять можно только поверх свежих данных обеих моделей.
+    final canSave = !_busy && banner == null;
 
     return Scaffold(
       appBar: AppBar(
@@ -387,6 +469,8 @@ class _WorkoutEditScreenState extends State<WorkoutEditScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
+              // ?banner — элемент добавляется, только если не null.
+              ?banner,
               TextFormField(
                 key: _dateKey,
                 controller: _dateController,
@@ -479,8 +563,9 @@ class _WorkoutEditScreenState extends State<WorkoutEditScreen> {
               ),
               const SizedBox(height: 24),
               FilledButton.icon(
-                // null выключает кнопку на время запроса.
-                onPressed: _busy ? null : _save,
+                // null выключает кнопку на время запроса и пока данные
+                // моделей устарели (см. _staleBanner).
+                onPressed: canSave ? _save : null,
                 icon: _busy
                     ? const SizedBox.square(
                         dimension: 18,
