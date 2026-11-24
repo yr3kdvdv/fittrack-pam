@@ -1,13 +1,12 @@
-/// Seed-данные FitTrack. Сущности живут в собственных файлах и переходят на L5,
-/// а этот файл умрёт вместе с mock.
+/// Seed-данные FitTrack. Единственные клиенты — mock repositories: ни экран,
+/// ни модель этот файл не импортируют. Сущности живут в собственных файлах и
+/// переходят на L5, а этот файл умрёт вместе с mock. Группы мышц и итоги
+/// статистики не хранятся — их вычисляют модели из данных.
 library;
 
 import 'exercise.dart';
 import 'user_profile.dart';
 import 'workout_session.dart';
-
-/// Группы мышц для фильтра каталога, в порядке показа.
-const muscleGroups = ['Ноги', 'Грудь', 'Спина', 'Плечи', 'Руки', 'Пресс'];
 
 const mockExercises = <Exercise>[
   Exercise(
@@ -101,16 +100,10 @@ const mockExercises = <Exercise>[
   ),
 ];
 
-Exercise exerciseById(String id) =>
-    mockExercises.firstWhere((exercise) => exercise.id == id);
-
 const mockUserId = 'user-01';
 
-/// Демонстрационная «сегодняшняя» дата — конец периода mock-данных.
-/// Зашита, а не DateTime.now(), чтобы макет выглядел одинаково в любой день.
-final mockToday = DateTime(2026, 10, 18);
-
 /// Тренировки за шесть недель (7 сентября — 18 октября 2026), сначала новые.
+/// Даты L3 сохранены; новые тренировки получают настоящую дату из формы.
 /// DateTime не бывает const, поэтому список final.
 final mockSessions = <WorkoutSession>[
   WorkoutSession(
@@ -231,59 +224,6 @@ const mockUser = UserProfile(
   goal: 'Набрать силу и подтянуть выносливость к весенним соревнованиям',
   weeklyTarget: 3,
 );
-
-/// Итог одной недели для статистики.
-class WeeklyStat {
-  const WeeklyStat({
-    required this.weekStart,
-    required this.sessionCount,
-    required this.totalMinutes,
-  });
-
-  /// Понедельник недели.
-  final DateTime weekStart;
-  final int sessionCount;
-  final int totalMinutes;
-}
-
-/// Зашитые итоги по неделям, сначала новые. На L2 они не вычисляются в UI;
-/// совпадение с mockSessions проверяет test/mock_data_test.dart.
-final mockWeeklyStats = <WeeklyStat>[
-  WeeklyStat(
-    weekStart: DateTime(2026, 10, 12),
-    sessionCount: 3,
-    totalMinutes: 180,
-  ),
-  WeeklyStat(
-    weekStart: DateTime(2026, 10, 5),
-    sessionCount: 2,
-    totalMinutes: 105,
-  ),
-  WeeklyStat(
-    weekStart: DateTime(2026, 9, 28),
-    sessionCount: 2,
-    totalMinutes: 120,
-  ),
-  WeeklyStat(
-    weekStart: DateTime(2026, 9, 21),
-    sessionCount: 3,
-    totalMinutes: 160,
-  ),
-  WeeklyStat(
-    weekStart: DateTime(2026, 9, 14),
-    sessionCount: 1,
-    totalMinutes: 60,
-  ),
-  WeeklyStat(
-    weekStart: DateTime(2026, 9, 7),
-    sessionCount: 2,
-    totalMinutes: 95,
-  ),
-];
-
-/// Общие итоги за весь период, тоже зашитые и проверяемые тестом.
-const mockTotalSessions = 13;
-const mockTotalMinutes = 720;
 
 /// Шаги техники по id упражнения. В модели темы техники нет, поэтому она
 /// хранится отдельно и не расширяет Exercise сверх модели backend.

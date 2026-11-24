@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import '../data/formatters.dart';
+import '../data/mock_network.dart';
 import '../data/user_profile.dart';
 import '../models/profile_model.dart';
 import '../models/workout_stats.dart';
@@ -14,8 +15,31 @@ import '../widgets/section_title.dart';
 /// Профиль пользователя: личные данные из ProfileModel, итоги из дневника,
 /// настройки и выход с подтверждением. Настройки и выход видны в любом
 /// состоянии загрузки — даже когда данные профиля упали.
-class ProfileScreen extends StatelessWidget {
+class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
+
+  @override
+  State<ProfileScreen> createState() => _ProfileScreenState();
+}
+
+class _ProfileScreenState extends State<ProfileScreen> {
+  /// Положение выключателя аварии — эфемерное состояние этого экрана.
+  late bool _simulateError;
+
+  @override
+  void initState() {
+    super.initState();
+    // После выхода и повторного входа экран создаётся заново, а авария
+    // могла остаться включённой: начинаем с фактического флага.
+    _simulateError = context.read<MockNetwork>().simulateError;
+  }
+
+  void _setSimulateError(bool value) {
+    setState(() => _simulateError = value);
+    // Единственное место UI, которое знает о mock: леса демонстрации,
+    // исчезают на L5 вместе с MockNetwork.
+    context.read<MockNetwork>().simulateError = value;
+  }
 
   void _reload(BuildContext context) {
     context.read<ProfileModel>().load();
@@ -76,6 +100,17 @@ class ProfileScreen extends StatelessWidget {
                   leading: Icon(Icons.straighten),
                   title: Text('Единицы измерения'),
                   subtitle: Text('Килограммы, сантиметры'),
+                ),
+                // Доступен и при ошибке профиля: иначе аварию нельзя было
+                // бы выключить с этого экрана.
+                SwitchListTile(
+                  secondary: const Icon(Icons.wifi_off),
+                  title: const Text('Симулировать сбой сети'),
+                  subtitle: const Text(
+                    'Демонстрация: все запросы завершаются ошибкой',
+                  ),
+                  value: _simulateError,
+                  onChanged: _setSimulateError,
                 ),
               ],
             ),
