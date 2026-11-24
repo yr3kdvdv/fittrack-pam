@@ -1,4 +1,5 @@
-import 'package:fittrack/data/mock_data.dart';
+import 'package:fittrack/data/mock_network.dart';
+import 'package:fittrack/data/mock_workout_repository.dart';
 import 'package:fittrack/main.dart';
 import 'package:fittrack/models/workouts_model.dart';
 import 'package:fittrack/router.dart';
@@ -8,11 +9,24 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
-/// Модели над приложением, как в main.dart: свежие на каждый тест.
-Widget withModels(Widget child) => ChangeNotifierProvider(
-  create: (_) => WorkoutsModel(mockSessions),
-  child: child,
-);
+/// Те же mock repositories, что в main.dart, но без задержки: тесты не ждут
+/// 800 мс. Свежий экземпляр на тест — мутации одного теста не видны другому.
+class TestBackend {
+  TestBackend({Duration latency = Duration.zero})
+    : network = MockNetwork(latency: latency) {
+    workouts = MockWorkoutRepository(network);
+  }
+
+  final MockNetwork network;
+  late final MockWorkoutRepository workouts;
+
+  Widget wrap(Widget child) =>
+      FitTrackProviders(network: network, workouts: workouts, child: child);
+}
+
+/// Модели над приложением, как в main.dart.
+Widget withModels(Widget child, {TestBackend? backend}) =>
+    (backend ?? TestBackend()).wrap(child);
 
 /// Модель дневника, видимая из [finder] (по умолчанию — из MaterialApp).
 WorkoutsModel workoutsModel(WidgetTester tester, [Finder? finder]) =>
@@ -21,12 +35,20 @@ WorkoutsModel workoutsModel(WidgetTester tester, [Finder? finder]) =>
       listen: false,
     );
 
-/// Показывает отдельный экран в теме FitTrack, без маршрутизатора.
-/// Подходит только для проверки вёрстки, не для переходов.
-Future<void> pumpScreen(WidgetTester tester, Widget screen) {
-  return tester.pumpWidget(
-    withModels(MaterialApp(theme: buildFitTrackTheme(), home: screen)),
+/// Показывает отдельный экран в теме FitTrack, без маршрутизатора, и ждёт
+/// окончания загрузки. Подходит для вёрстки и состояний, не для переходов.
+Future<void> pumpScreen(
+  WidgetTester tester,
+  Widget screen, {
+  TestBackend? backend,
+}) async {
+  await tester.pumpWidget(
+    withModels(
+      MaterialApp(theme: buildFitTrackTheme(), home: screen),
+      backend: backend,
+    ),
   );
+  await tester.pumpAndSettle();
 }
 
 /// Запускает всё приложение со свежим роутером, открытым по [location].
@@ -34,10 +56,13 @@ Future<void> pumpScreen(WidgetTester tester, Widget screen) {
 Future<GoRouter> pumpApp(
   WidgetTester tester, {
   String location = '/login',
+  TestBackend? backend,
 }) async {
   final router = createRouter(initialLocation: location);
   addTearDown(router.dispose);
-  await tester.pumpWidget(withModels(FitTrackApp(router: router)));
+  await tester.pumpWidget(
+    withModels(FitTrackApp(router: router), backend: backend),
+  );
   await tester.pumpAndSettle();
   return router;
 }
