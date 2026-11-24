@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import '../data/formatters.dart';
+import '../data/workout_session.dart';
 import '../models/exercises_model.dart';
 import '../models/workouts_model.dart';
 import '../widgets/error_view.dart';
@@ -41,6 +42,12 @@ String? validateWorkoutDate(String? value) {
     return 'Такой даты нет в календаре';
   }
   return null;
+}
+
+/// Дата из уже проверенной строки «ДД.ММ.ГГГГ» (validateWorkoutDate == null).
+DateTime parseWorkoutDate(String value) {
+  final parts = value.trim().split('.').map(int.parse).toList();
+  return DateTime(parts[2], parts[1], parts[0]);
 }
 
 /// Длительность — положительное целое число минут.
@@ -143,23 +150,89 @@ class _WorkoutEditScreenState extends State<WorkoutEditScreen> {
     });
   }
 
-  void _save() {
+  /// Идёт сохранение: кнопка выключена, повторное нажатие не создаст дубль.
+  bool _busy = false;
+
+  Future<void> _save() async {
+    if (_busy) return;
     if (!_formKey.currentState!.validate()) {
       setState(() => _submitted = true);
       _showFirstError();
       return;
     }
+    final model = context.read<WorkoutsModel>();
+    final catalog = context.read<ExercisesModel>().exercises;
+    // Порядок упражнений — как в каталоге, а не как их отмечали.
+    final exerciseIds = [
+      for (final e in catalog)
+        if (_selectedIds.contains(e.id)) e.id,
+      for (final id in _selectedIds)
+        if (!catalog.any((e) => e.id == id)) id,
+    ];
+    final date = parseWorkoutDate(_dateController.text);
     final minutes = int.parse(_durationController.text.trim());
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          'Тренировка ${_dateController.text.trim()} сохранена: '
-          '${formatDuration(minutes)}, упражнений: ${_selectedIds.length}',
+    final notes = _notesController.text.trim();
+
+    final sessionId = widget.sessionId;
+    final existing = sessionId == null ? null : model.byId(sessionId);
+    if (sessionId != null && existing == null) return; // экран уже «не найдено»
+
+    setState(() => _busy = true);
+    final String? error;
+    if (existing == null) {
+      // Временный id: настоящую идентичность даст хранилище (на L5 — сервер).
+      error = await model.add(
+        WorkoutSession(
+          id: '',
+          userId: '',
+          date: date,
+          exerciseIds: exerciseIds,
+          durationMin: minutes,
+          notes: notes,
         ),
-      ),
-    );
-    // Форма открыта push-ем, поэтому закрывается pop-ом.
-    context.pop();
+      );
+    } else {
+      error = await model.update(
+        existing.copyWith(
+          date: date,
+          exerciseIds: exerciseIds,
+          durationMin: minutes,
+          notes: notes,
+        ),
+      );
+    }
+    // Экран мог закрыться, пока «запрос» летел.
+    if (!mounted) return;
+    setState(() => _busy = false);
+    if (error != null) {
+      // Поля не трогаем: пользователь повторит, ничего не вводя заново.
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(SnackBar(content: Text(error)));
+      return;
+    }
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: Text(
+            'Тренировка ${formatNumericDate(date)} сохранена: '
+            '${formatDuration(minutes)}, упражнений: ${exerciseIds.length}',
+          ),
+        ),
+      );
+    // Список позади уже обновлён извещением модели — ничего не передаём.
+    _leave();
+  }
+
+  /// Форма открыта push-ем и закрывается pop-ом. Если её открыли прямым
+  /// адресом и возвращаться некуда, go ведёт в дневник.
+  void _leave() {
+    if (context.canPop()) {
+      context.pop();
+    } else {
+      context.go('/workouts');
+    }
   }
 
   /// Кнопка «Сохранить» внизу длинной формы: ошибка в начале может оказаться
@@ -360,8 +433,14 @@ class _WorkoutEditScreenState extends State<WorkoutEditScreen> {
               ),
               const SizedBox(height: 24),
               FilledButton.icon(
-                onPressed: _save,
-                icon: const Icon(Icons.check),
+                // null выключает кнопку на время запроса.
+                onPressed: _busy ? null : _save,
+                icon: _busy
+                    ? const SizedBox.square(
+                        dimension: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.check),
                 label: const Text('Сохранить'),
               ),
             ],
