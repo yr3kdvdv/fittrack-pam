@@ -8,6 +8,7 @@ import '../data/formatters.dart';
 import '../data/workout_session.dart';
 import '../models/exercises_model.dart';
 import '../models/workouts_model.dart';
+import '../widgets/confirm_delete_dialog.dart';
 import '../widgets/error_view.dart';
 import '../widgets/exercise_tile.dart';
 import '../widgets/section_title.dart';
@@ -225,6 +226,40 @@ class _WorkoutEditScreenState extends State<WorkoutEditScreen> {
     _leave();
   }
 
+  /// Удаление уже подтверждено и идёт: экран не подменяется на «не найдено»,
+  /// когда модель уберёт сессию, а спокойно закрывается.
+  bool _deleting = false;
+
+  Future<void> _delete() async {
+    final sessionId = widget.sessionId;
+    if (_busy || sessionId == null) return;
+    final ok = await confirmDeleteWorkout(context);
+    // Отмена и null не удаляют; экран мог исчезнуть, пока диалог был открыт.
+    if (ok != true || !mounted) return;
+
+    setState(() {
+      _busy = true;
+      _deleting = true;
+    });
+    final error = await context.read<WorkoutsModel>().remove(sessionId);
+    if (!mounted) return;
+    if (error != null) {
+      setState(() {
+        _busy = false;
+        _deleting = false;
+      });
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(SnackBar(content: Text(error)));
+      return;
+    }
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(const SnackBar(content: Text('Тренировка удалена')));
+    // Объекта больше нет — его экран уходит из стека.
+    _leave();
+  }
+
   /// Форма открыта push-ем и закрывается pop-ом. Если её открыли прямым
   /// адресом и возвращаться некуда, go ведёт в дневник.
   void _leave() {
@@ -304,6 +339,7 @@ class _WorkoutEditScreenState extends State<WorkoutEditScreen> {
     final sessionId = widget.sessionId;
     final sessionGone =
         sessionId != null &&
+        !_deleting &&
         !workouts.isLoading &&
         workouts.error == null &&
         workouts.byId(sessionId) == null;
@@ -327,7 +363,17 @@ class _WorkoutEditScreenState extends State<WorkoutEditScreen> {
     final theme = Theme.of(context);
 
     return Scaffold(
-      appBar: AppBar(title: Text(_title)),
+      appBar: AppBar(
+        title: Text(_title),
+        actions: [
+          if (_editing)
+            IconButton(
+              tooltip: 'Удалить тренировку',
+              onPressed: _busy ? null : _delete,
+              icon: const Icon(Icons.delete_outline),
+            ),
+        ],
+      ),
       // Не ListView: он строит только видимые элементы, и поле за экраном
       // выпало бы из Form — validate() его бы не проверил. Полей немного,
       // поэтому Column внутри прокрутки строит их все сразу.
