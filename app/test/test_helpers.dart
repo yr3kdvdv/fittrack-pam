@@ -1,15 +1,31 @@
+import 'package:fittrack/data/mock_data.dart';
 import 'package:fittrack/main.dart';
+import 'package:fittrack/models/workouts_model.dart';
 import 'package:fittrack/router.dart';
 import 'package:fittrack/theme.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart';
+
+/// Модели над приложением, как в main.dart: свежие на каждый тест.
+Widget withModels(Widget child) => ChangeNotifierProvider(
+  create: (_) => WorkoutsModel(mockSessions),
+  child: child,
+);
+
+/// Модель дневника, видимая из [finder] (по умолчанию — из MaterialApp).
+WorkoutsModel workoutsModel(WidgetTester tester, [Finder? finder]) =>
+    Provider.of<WorkoutsModel>(
+      tester.element(finder ?? find.byType(MaterialApp)),
+      listen: false,
+    );
 
 /// Показывает отдельный экран в теме FitTrack, без маршрутизатора.
 /// Подходит только для проверки вёрстки, не для переходов.
 Future<void> pumpScreen(WidgetTester tester, Widget screen) {
   return tester.pumpWidget(
-    MaterialApp(theme: buildFitTrackTheme(), home: screen),
+    withModels(MaterialApp(theme: buildFitTrackTheme(), home: screen)),
   );
 }
 
@@ -21,7 +37,7 @@ Future<GoRouter> pumpApp(
 }) async {
   final router = createRouter(initialLocation: location);
   addTearDown(router.dispose);
-  await tester.pumpWidget(FitTrackApp(router: router));
+  await tester.pumpWidget(withModels(FitTrackApp(router: router)));
   await tester.pumpAndSettle();
   return router;
 }
