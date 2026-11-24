@@ -1,22 +1,26 @@
 import 'package:flutter/material.dart';
 
 import '../data/formatters.dart';
-import '../data/mock_data.dart';
+import '../data/workout_session.dart';
 
 /// Карточка тренировки: дата, длительность, упражнения и заметки.
+/// Названия упражнений передаёт экран: widget не знает, откуда данные.
 class SessionCard extends StatelessWidget {
-  const SessionCard({super.key, required this.session, this.onTap});
+  const SessionCard({
+    super.key,
+    required this.session,
+    required this.exerciseNames,
+    this.onTap,
+  });
 
   final WorkoutSession session;
+  final List<String> exerciseNames;
   final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
-    final exerciseNames = session.exerciseIds
-        .map((id) => exerciseById(id).name)
-        .join(' · ');
 
     return Card(
       clipBehavior: Clip.antiAlias,
@@ -41,7 +45,10 @@ class SessionCard extends StatelessWidget {
                 ],
               ),
               const SizedBox(height: 8),
-              Text(exerciseNames, style: theme.textTheme.bodyMedium),
+              Text(
+                exerciseNames.join(' · '),
+                style: theme.textTheme.bodyMedium,
+              ),
               if (session.notes.isNotEmpty) ...[
                 const SizedBox(height: 8),
                 Row(
