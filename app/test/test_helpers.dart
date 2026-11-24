@@ -1,5 +1,6 @@
 import 'package:fittrack/data/mock_exercise_repository.dart';
 import 'package:fittrack/data/mock_network.dart';
+import 'package:fittrack/data/mock_profile_repository.dart';
 import 'package:fittrack/data/mock_workout_repository.dart';
 import 'package:fittrack/main.dart';
 import 'package:fittrack/models/exercises_model.dart';
@@ -18,16 +19,19 @@ class TestBackend {
     : network = MockNetwork(latency: latency) {
     workouts = MockWorkoutRepository(network);
     exercises = MockExerciseRepository(network);
+    profile = MockProfileRepository(network);
   }
 
   final MockNetwork network;
   late final MockWorkoutRepository workouts;
   late final MockExerciseRepository exercises;
+  late final MockProfileRepository profile;
 
   Widget wrap(Widget child) => FitTrackProviders(
     network: network,
     workouts: workouts,
     exercises: exercises,
+    profile: profile,
     child: child,
   );
 }

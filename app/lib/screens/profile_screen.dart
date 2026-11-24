@@ -1,94 +1,65 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart';
 
 import '../data/formatters.dart';
-import '../data/mock_data.dart';
+import '../data/user_profile.dart';
+import '../models/profile_model.dart';
+import '../models/workout_stats.dart';
+import '../models/workouts_model.dart';
+import '../widgets/error_view.dart';
 import '../widgets/metric_card.dart';
 import '../widgets/section_title.dart';
 
-/// Профиль пользователя: личные данные, итоги, настройки (статично)
-/// и выход с подтверждением.
+/// Профиль пользователя: личные данные из ProfileModel, итоги из дневника,
+/// настройки и выход с подтверждением. Настройки и выход видны в любом
+/// состоянии загрузки — даже когда данные профиля упали.
 class ProfileScreen extends StatelessWidget {
   const ProfileScreen({super.key});
 
+  void _reload(BuildContext context) {
+    context.read<ProfileModel>().load();
+    context.read<WorkoutsModel>().load();
+  }
+
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
-    const user = mockUser;
-    final initials = user.fullName.split(' ').map((part) => part[0]).join();
+    final profile = context.watch<ProfileModel>();
+    final workouts = context.watch<WorkoutsModel>();
+    final user = profile.profile;
+
+    final List<Widget> data;
+    if (profile.isLoading || workouts.isLoading) {
+      data = const [
+        Padding(
+          padding: EdgeInsets.all(32),
+          child: Center(child: CircularProgressIndicator()),
+        ),
+      ];
+    } else if (profile.error ?? workouts.error case final error?) {
+      data = [ErrorView(message: error, onRetry: () => _reload(context))];
+    } else if (user == null) {
+      // Без ошибки и без данных бывает только до первой загрузки.
+      data = const [];
+    } else {
+      data = _buildData(context, user, workouts.stats);
+    }
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Профиль')),
+      appBar: AppBar(
+        title: const Text('Профиль'),
+        actions: [
+          IconButton(
+            tooltip: 'Обновить',
+            onPressed: () => _reload(context),
+            icon: const Icon(Icons.refresh),
+          ),
+        ],
+      ),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          Center(
-            child: CircleAvatar(
-              radius: 40,
-              backgroundColor: colorScheme.primaryContainer,
-              foregroundColor: colorScheme.onPrimaryContainer,
-              child: Text(initials, style: theme.textTheme.headlineSmall),
-            ),
-          ),
-          const SizedBox(height: 12),
-          Text(
-            user.fullName,
-            textAlign: TextAlign.center,
-            style: theme.textTheme.headlineSmall,
-          ),
-          Text(
-            user.email,
-            textAlign: TextAlign.center,
-            style: theme.textTheme.bodyMedium?.copyWith(
-              color: colorScheme.onSurfaceVariant,
-            ),
-          ),
-          const SizedBox(height: 16),
-          MetricPair(
-            left: const MetricCard(
-              icon: Icons.event_available,
-              value: '$mockTotalSessions',
-              label: 'Тренировок',
-            ),
-            right: MetricCard(
-              icon: Icons.schedule,
-              value: formatDuration(mockTotalMinutes),
-              label: 'Общее время',
-            ),
-          ),
-          const SectionTitle('Личные данные', icon: Icons.badge_outlined),
-          Card(
-            child: Column(
-              children: [
-                _InfoTile(
-                  icon: Icons.cake_outlined,
-                  label: 'Возраст',
-                  value: '${user.age} год',
-                ),
-                _InfoTile(
-                  icon: Icons.height,
-                  label: 'Рост',
-                  value: '${user.heightCm} см',
-                ),
-                _InfoTile(
-                  icon: Icons.monitor_weight_outlined,
-                  label: 'Вес',
-                  value: '${user.weightKg.toString().replaceAll('.', ',')} кг',
-                ),
-                _InfoTile(
-                  icon: Icons.flag_outlined,
-                  label: 'Цель',
-                  value: user.goal,
-                ),
-                _InfoTile(
-                  icon: Icons.repeat,
-                  label: 'План',
-                  value: 'Тренировок в неделю: ${user.weeklyTarget}',
-                ),
-              ],
-            ),
-          ),
+          ...data,
           const SectionTitle('Настройки', icon: Icons.settings_outlined),
           Card(
             child: Column(
@@ -97,7 +68,7 @@ class ProfileScreen extends StatelessWidget {
                   secondary: const Icon(Icons.notifications_outlined),
                   title: const Text('Напоминания о тренировках'),
                   value: true,
-                  // Хранить настройку негде до общего состояния L4, поэтому
+                  // Сохранять настройку между запусками — задача L6, поэтому
                   // переключатель не меняется, а честно сообщает об этом.
                   onChanged: (_) => _showNotSavedYet(context),
                 ),
@@ -118,6 +89,85 @@ class ProfileScreen extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  List<Widget> _buildData(
+    BuildContext context,
+    UserProfile user,
+    WorkoutStats stats,
+  ) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final initials = user.fullName.split(' ').map((part) => part[0]).join();
+    return [
+      Center(
+        child: CircleAvatar(
+          radius: 40,
+          backgroundColor: colorScheme.primaryContainer,
+          foregroundColor: colorScheme.onPrimaryContainer,
+          child: Text(initials, style: theme.textTheme.headlineSmall),
+        ),
+      ),
+      const SizedBox(height: 12),
+      Text(
+        user.fullName,
+        textAlign: TextAlign.center,
+        style: theme.textTheme.headlineSmall,
+      ),
+      Text(
+        user.email,
+        textAlign: TextAlign.center,
+        style: theme.textTheme.bodyMedium?.copyWith(
+          color: colorScheme.onSurfaceVariant,
+        ),
+      ),
+      const SizedBox(height: 16),
+      // Итоги из живого дневника: меняются после любой мутации.
+      MetricPair(
+        left: MetricCard(
+          icon: Icons.event_available,
+          value: '${stats.totalSessions}',
+          label: 'Тренировок',
+        ),
+        right: MetricCard(
+          icon: Icons.schedule,
+          value: formatDuration(stats.totalMinutes),
+          label: 'Общее время',
+        ),
+      ),
+      const SectionTitle('Личные данные', icon: Icons.badge_outlined),
+      Card(
+        child: Column(
+          children: [
+            _InfoTile(
+              icon: Icons.cake_outlined,
+              label: 'Возраст',
+              value: '${user.age} год',
+            ),
+            _InfoTile(
+              icon: Icons.height,
+              label: 'Рост',
+              value: '${user.heightCm} см',
+            ),
+            _InfoTile(
+              icon: Icons.monitor_weight_outlined,
+              label: 'Вес',
+              value: '${user.weightKg.toString().replaceAll('.', ',')} кг',
+            ),
+            _InfoTile(
+              icon: Icons.flag_outlined,
+              label: 'Цель',
+              value: user.goal,
+            ),
+            _InfoTile(
+              icon: Icons.repeat,
+              label: 'План',
+              value: 'Тренировок в неделю: ${user.weeklyTarget}',
+            ),
+          ],
+        ),
+      ),
+    ];
   }
 
   void _showNotSavedYet(BuildContext context) {

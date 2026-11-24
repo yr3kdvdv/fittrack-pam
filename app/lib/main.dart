@@ -5,9 +5,12 @@ import 'package:provider/provider.dart';
 import 'data/exercise_repository.dart';
 import 'data/mock_exercise_repository.dart';
 import 'data/mock_network.dart';
+import 'data/mock_profile_repository.dart';
 import 'data/mock_workout_repository.dart';
+import 'data/profile_repository.dart';
 import 'data/workout_repository.dart';
 import 'models/exercises_model.dart';
+import 'models/profile_model.dart';
 import 'models/workouts_model.dart';
 import 'router.dart';
 import 'theme.dart';
@@ -21,6 +24,7 @@ void main() {
       network: network,
       workouts: MockWorkoutRepository(network),
       exercises: MockExerciseRepository(network),
+      profile: MockProfileRepository(network),
       child: const FitTrackApp(),
     ),
   );
@@ -34,6 +38,7 @@ class FitTrackProviders extends StatelessWidget {
     required this.network,
     required this.workouts,
     required this.exercises,
+    required this.profile,
     required this.child,
   });
 
@@ -41,6 +46,7 @@ class FitTrackProviders extends StatelessWidget {
   final MockNetwork network;
   final WorkoutRepository workouts;
   final ExerciseRepository exercises;
+  final ProfileRepository profile;
   final Widget child;
 
   @override
@@ -55,6 +61,7 @@ class FitTrackProviders extends StatelessWidget {
         ChangeNotifierProvider(
           create: (_) => ExercisesModel(exercises)..load(),
         ),
+        ChangeNotifierProvider(create: (_) => ProfileModel(profile)..load()),
       ],
       child: child,
     );
