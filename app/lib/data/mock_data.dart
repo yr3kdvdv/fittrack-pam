@@ -1,45 +1,16 @@
-/// Общие mock-данные FitTrack. Поля моделей повторяют модель данных темы T2,
-/// чтобы на L4/L5 их заменили данные Repository и backend без переделки экранов.
+/// Seed-данные FitTrack. Сущности живут в собственных файлах и переходят на L5,
+/// а этот файл умрёт вместе с mock.
 library;
 
-class Exercise {
-  const Exercise({
-    required this.id,
-    required this.name,
-    required this.muscleGroup,
-    required this.description,
-    required this.imageUrl,
-  });
+import 'exercise.dart';
+import 'user_profile.dart';
+import 'workout_session.dart';
 
-  final String id;
-  final String name;
-  final String muscleGroup;
-  final String description;
-
-  /// Путь к изображению на будущем сервере (L5). На L2 файлы не загружаются:
-  /// вместо фотографии экраны показывают иконку группы мышц.
-  final String imageUrl;
-}
-
-class WorkoutSession {
-  const WorkoutSession({
-    required this.id,
-    required this.userId,
-    required this.date,
-    required this.exerciseIds,
-    required this.durationMin,
-    required this.notes,
-  });
-
-  final String id;
-  final String userId;
-  final DateTime date;
-
-  /// Ссылки на упражнения каталога по id, как в модели backend.
-  final List<String> exerciseIds;
-  final int durationMin;
-  final String notes;
-}
+// Временный re-export: экраны L3 ещё импортируют сущности отсюда.
+// Убирается, когда все экраны переходят на модели.
+export 'exercise.dart';
+export 'user_profile.dart';
+export 'workout_session.dart';
 
 /// Группы мышц для фильтра каталога, в порядке показа.
 const muscleGroups = ['Ноги', 'Грудь', 'Спина', 'Плечи', 'Руки', 'Пресс'];
@@ -255,31 +226,6 @@ final mockSessions = <WorkoutSession>[
     notes: 'Знакомство с программой, подбор рабочих весов.',
   ),
 ];
-
-/// Профиль пользователя. На L5 часть полей придёт из аутентификации шаблона.
-class UserProfile {
-  const UserProfile({
-    required this.id,
-    required this.fullName,
-    required this.email,
-    required this.age,
-    required this.heightCm,
-    required this.weightKg,
-    required this.goal,
-    required this.weeklyTarget,
-  });
-
-  final String id;
-  final String fullName;
-  final String email;
-  final int age;
-  final int heightCm;
-  final double weightKg;
-  final String goal;
-
-  /// Сколько тренировок в неделю пользователь планирует.
-  final int weeklyTarget;
-}
 
 const mockUser = UserProfile(
   id: mockUserId,
