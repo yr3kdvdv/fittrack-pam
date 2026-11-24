@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 
 import '../data/formatters.dart';
 import '../data/mock_data.dart';
+import '../data/workout_session.dart';
 import '../widgets/exercise_tile.dart';
 import '../widgets/section_title.dart';
 import 'not_found_screen.dart';

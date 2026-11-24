@@ -4,6 +4,7 @@ import '../data/result.dart';
 import '../data/workout_repository.dart';
 import '../data/workout_session.dart';
 import 'safe_notifier.dart';
+import 'workout_stats.dart';
 
 /// Разделяемое состояние дневника: его читают дневник, badge вкладки,
 /// форма, статистика и профиль. Чистый Dart — ни одного widget-а.
@@ -32,6 +33,9 @@ class WorkoutsModel extends ChangeNotifier with SafeNotifier {
   List<WorkoutSession> get sessions => List.unmodifiable(_sessions);
 
   int get count => _sessions.length;
+
+  /// Агрегаты для статистики и профиля, из текущего списка.
+  WorkoutStats get stats => WorkoutStats.fromSessions(_sessions);
 
   /// Сессия из загруженного списка или null, если её нет.
   WorkoutSession? byId(String id) =>

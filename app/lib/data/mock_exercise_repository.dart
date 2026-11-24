@@ -1,3 +1,4 @@
+import 'exercise.dart';
 import 'exercise_repository.dart';
 import 'mock_data.dart';
 import 'mock_network.dart';

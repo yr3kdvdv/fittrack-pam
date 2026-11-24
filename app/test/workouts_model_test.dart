@@ -5,6 +5,7 @@ import 'package:fittrack/data/mock_network.dart';
 import 'package:fittrack/data/mock_workout_repository.dart';
 import 'package:fittrack/data/result.dart';
 import 'package:fittrack/data/workout_repository.dart';
+import 'package:fittrack/data/workout_session.dart';
 import 'package:fittrack/models/workouts_model.dart';
 import 'package:flutter_test/flutter_test.dart';
 

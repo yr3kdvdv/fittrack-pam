@@ -1,3 +1,4 @@
+import 'package:fittrack/data/exercise.dart';
 import 'package:fittrack/data/formatters.dart';
 import 'package:fittrack/data/mock_data.dart';
 import 'package:fittrack/screens/workout_edit_screen.dart';

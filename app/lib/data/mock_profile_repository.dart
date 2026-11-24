@@ -2,6 +2,7 @@ import 'mock_data.dart';
 import 'mock_network.dart';
 import 'profile_repository.dart';
 import 'result.dart';
+import 'user_profile.dart';
 
 /// Профиль из seed-а, с задержкой и общей аварией.
 class MockProfileRepository implements ProfileRepository {

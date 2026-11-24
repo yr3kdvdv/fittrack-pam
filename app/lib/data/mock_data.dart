@@ -6,12 +6,6 @@ import 'exercise.dart';
 import 'user_profile.dart';
 import 'workout_session.dart';
 
-// Временный re-export: экраны L3 ещё импортируют сущности отсюда.
-// Убирается, когда все экраны переходят на модели.
-export 'exercise.dart';
-export 'user_profile.dart';
-export 'workout_session.dart';
-
 /// Группы мышц для фильтра каталога, в порядке показа.
 const muscleGroups = ['Ноги', 'Грудь', 'Спина', 'Плечи', 'Руки', 'Пресс'];
 

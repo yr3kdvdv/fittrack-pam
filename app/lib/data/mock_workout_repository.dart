@@ -2,6 +2,7 @@ import 'mock_data.dart';
 import 'mock_network.dart';
 import 'result.dart';
 import 'workout_repository.dart';
+import 'workout_session.dart';
 
 /// Тренировки в памяти, с повадками сети. Перезапуск приложения возвращает
 /// seed: персистентности на L4 нет.
