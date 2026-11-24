@@ -2,17 +2,19 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart';
 
 import '../data/formatters.dart';
-import '../data/mock_data.dart';
-import '../data/workout_session.dart';
+import '../models/exercises_model.dart';
+import '../models/workouts_model.dart';
+import '../widgets/error_view.dart';
 import '../widgets/exercise_tile.dart';
 import '../widgets/section_title.dart';
 import 'not_found_screen.dart';
 
 /// Форма новой тренировки (/workouts/new) или редактирования существующей
-/// (/workouts/:id/edit). Получает только [sessionId] и сама находит сессию.
-/// Ввод проверяется локально; mock-данные не меняются — сохранение придёт на L4.
+/// (/workouts/:id/edit). Получает только [sessionId]; сессию и список
+/// упражнений берёт из моделей. Ввод проверяется локально (L3).
 class WorkoutEditScreen extends StatefulWidget {
   const WorkoutEditScreen({super.key, this.sessionId});
 
@@ -64,18 +66,27 @@ class _WorkoutEditScreenState extends State<WorkoutEditScreen> {
   final _durationController = TextEditingController();
   final _notesController = TextEditingController();
 
-  /// Локальная копия выбора: список exerciseIds в mock остаётся нетронутым.
+  /// Выбор упражнений — эфемерное состояние формы, а не модели.
   Set<String> _selectedIds = {};
-
-  WorkoutSession? _session;
 
   /// После первой неудачной попытки ошибки обновляются сразу при исправлении.
   bool _submitted = false;
 
+  /// Поля уже заполнены. Заполняются ровно один раз: следующие извещения
+  /// модели (перезагрузка, мутации на других экранах) не стирают ввод.
+  bool _filled = false;
+
+  late final WorkoutsModel _workouts;
+
+  bool get _editing => widget.sessionId != null;
+
   @override
   void initState() {
     super.initState();
-    _loadSession();
+    // read, а не watch: подписка на извещения нужна только до заполнения.
+    _workouts = context.read<WorkoutsModel>();
+    _workouts.addListener(_fillOnce);
+    _fillOnce();
   }
 
   @override
@@ -85,27 +96,41 @@ class _WorkoutEditScreenState extends State<WorkoutEditScreen> {
     // без перезагрузки форма показала бы поля и ошибки предыдущей сессии.
     if (oldWidget.sessionId != widget.sessionId) {
       _submitted = false;
-      // reset очищает ошибки и текст полей; новые значения ставит _loadSession.
+      _filled = false;
+      // reset очищает ошибки и текст полей; новые значения ставит _fillOnce.
       _formKey.currentState?.reset();
-      _loadSession();
+      _fillOnce();
     }
   }
 
-  void _loadSession() {
+  /// Вызывается сразу и при каждом извещении модели, но заполняет поля
+  /// только первый раз, когда данные есть. Без setState: экран и так
+  /// перестроится — он подписан на модель через watch.
+  void _fillOnce() {
+    if (_filled) return;
     final sessionId = widget.sessionId;
-    final session = sessionId == null
-        ? null
-        : mockSessions.where((s) => s.id == sessionId).firstOrNull;
-    _session = session;
-    // Новая тренировка начинается с демонстрационной «сегодняшней» даты.
-    _dateController.text = formatNumericDate(session?.date ?? mockToday);
-    _durationController.text = session == null ? '' : '${session.durationMin}';
-    _notesController.text = session?.notes ?? '';
-    _selectedIds = {...?session?.exerciseIds};
+    if (sessionId == null) {
+      // Новая тренировка начинается с настоящей сегодняшней даты.
+      _dateController.text = formatNumericDate(DateTime.now());
+      _durationController.text = '';
+      _notesController.text = '';
+      _selectedIds = {};
+      _filled = true;
+      return;
+    }
+    if (_workouts.isLoading || _workouts.error != null) return;
+    final session = _workouts.byId(sessionId);
+    if (session == null) return;
+    _dateController.text = formatNumericDate(session.date);
+    _durationController.text = '${session.durationMin}';
+    _notesController.text = session.notes;
+    _selectedIds = {...session.exerciseIds};
+    _filled = true;
   }
 
   @override
   void dispose() {
+    _workouts.removeListener(_fillOnce);
     _dateController.dispose();
     _durationController.dispose();
     _notesController.dispose();
@@ -173,10 +198,43 @@ class _WorkoutEditScreenState extends State<WorkoutEditScreen> {
     );
   }
 
+  String get _title =>
+      _editing ? 'Редактирование тренировки' : 'Новая тренировка';
+
+  void _reload() {
+    context.read<WorkoutsModel>().load();
+    context.read<ExercisesModel>().load();
+  }
+
+  /// Экран вместо формы, пока для неё нет данных; null — форму можно
+  /// показывать. Как только форма показана, перезагрузки её не прячут:
+  /// иначе spinner на месте формы сбросил бы ошибки и прокрутку.
+  Widget? _stateView(WorkoutsModel workouts, ExercisesModel exercises) {
+    final needsSession = _editing && !_filled;
+    if (needsSession || !exercises.hasData) {
+      if ((needsSession && workouts.isLoading) || exercises.isLoading) {
+        return const Center(child: CircularProgressIndicator());
+      }
+      final error = (needsSession ? workouts.error : null) ?? exercises.error;
+      if (error != null) return ErrorView(message: error, onRetry: _reload);
+    }
+    return null;
+  }
+
   @override
   Widget build(BuildContext context) {
-    // id есть, но такой сессии нет — не подменяем её пустой новой формой.
-    if (widget.sessionId != null && _session == null) {
+    final workouts = context.watch<WorkoutsModel>();
+    final exercises = context.watch<ExercisesModel>();
+
+    // Данные загружены, а сессии с таким id нет (старая ссылка или запись
+    // удалена) — сообщение, а не вечный spinner и не пустая новая форма.
+    final sessionId = widget.sessionId;
+    final sessionGone =
+        sessionId != null &&
+        !workouts.isLoading &&
+        workouts.error == null &&
+        workouts.byId(sessionId) == null;
+    if (sessionGone) {
       return const NotFoundScreen(
         title: 'Редактирование тренировки',
         message: 'Тренировка не найдена',
@@ -185,14 +243,18 @@ class _WorkoutEditScreenState extends State<WorkoutEditScreen> {
       );
     }
 
+    final stateView = _stateView(workouts, exercises);
+    if (stateView != null) {
+      return Scaffold(
+        appBar: AppBar(title: Text(_title)),
+        body: stateView,
+      );
+    }
+
     final theme = Theme.of(context);
 
     return Scaffold(
-      appBar: AppBar(
-        title: Text(
-          _session == null ? 'Новая тренировка' : 'Редактирование тренировки',
-        ),
-      ),
+      appBar: AppBar(title: Text(_title)),
       // Не ListView: он строит только видимые элементы, и поле за экраном
       // выпало бы из Form — validate() его бы не проверил. Полей немного,
       // поэтому Column внутри прокрутки строит их все сразу.
@@ -267,7 +329,7 @@ class _WorkoutEditScreenState extends State<WorkoutEditScreen> {
                           ),
                         ),
                       ),
-                    for (final exercise in mockExercises)
+                    for (final exercise in exercises.exercises)
                       Padding(
                         padding: const EdgeInsets.only(bottom: 8),
                         child: ExerciseTile(

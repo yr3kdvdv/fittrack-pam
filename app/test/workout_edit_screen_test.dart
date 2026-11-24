@@ -1,7 +1,10 @@
 import 'package:fittrack/data/exercise.dart';
 import 'package:fittrack/data/formatters.dart';
 import 'package:fittrack/data/mock_data.dart';
+import 'package:fittrack/screens/not_found_screen.dart';
 import 'package:fittrack/screens/workout_edit_screen.dart';
+import 'package:fittrack/theme.dart';
+import 'package:fittrack/widgets/error_view.dart';
 import 'package:fittrack/screens/workouts_screen.dart';
 import 'package:fittrack/widgets/exercise_tile.dart';
 import 'package:flutter/material.dart';
@@ -94,7 +97,7 @@ void main() {
 
     expect(find.text('Новая тренировка'), findsOneWidget);
     expect(find.byType(TextFormField), findsNWidgets(3));
-    expect(_fieldText(tester, 'Дата'), formatNumericDate(mockToday));
+    expect(_fieldText(tester, 'Дата'), formatNumericDate(DateTime.now()));
     expect(_fieldText(tester, 'Длительность'), isEmpty);
     for (final exercise in mockExercises) {
       expect(_isChecked(tester, exercise), isFalse, reason: exercise.id);
@@ -128,6 +131,79 @@ void main() {
         reason: exercise.id,
       );
     }
+  });
+
+  testWidgets('прямой адрес редактирования: spinner, затем заполненная форма', (
+    tester,
+  ) async {
+    final session = mockSessions.first;
+    final backend = TestBackend(latency: const Duration(milliseconds: 800));
+    await tester.pumpWidget(
+      backend.wrap(
+        MaterialApp(
+          theme: buildFitTrackTheme(),
+          home: WorkoutEditScreen(sessionId: session.id),
+        ),
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 400));
+    expect(find.byType(CircularProgressIndicator), findsOneWidget);
+    expect(find.byType(NotFoundScreen), findsNothing);
+
+    await tester.pump(const Duration(milliseconds: 400));
+    expect(find.byType(CircularProgressIndicator), findsNothing);
+    expect(_fieldText(tester, 'Длительность'), '${session.durationMin}');
+  });
+
+  testWidgets('ошибка загрузки формы: retry, затем поля сессии', (
+    tester,
+  ) async {
+    final session = mockSessions.first;
+    final backend = TestBackend()..network.simulateError = true;
+    await pumpScreen(
+      tester,
+      WorkoutEditScreen(sessionId: session.id),
+      backend: backend,
+    );
+    expect(find.byType(ErrorView), findsOneWidget);
+    expect(find.byType(NotFoundScreen), findsNothing);
+
+    backend.network.simulateError = false;
+    await tester.tap(find.text('Повторить'));
+    await tester.pumpAndSettle();
+    expect(_fieldText(tester, 'Длительность'), '${session.durationMin}');
+  });
+
+  testWidgets('неизвестный id после загрузки — сообщение, не spinner', (
+    tester,
+  ) async {
+    await pumpScreen(tester, const WorkoutEditScreen(sessionId: 'ws-404'));
+
+    expect(find.byType(CircularProgressIndicator), findsNothing);
+    expect(find.text('Тренировка не найдена'), findsOneWidget);
+  });
+
+  testWidgets('извещения и перезагрузка модели не стирают ввод', (
+    tester,
+  ) async {
+    final session = mockSessions.first;
+    await pumpScreen(tester, WorkoutEditScreen(sessionId: session.id));
+
+    await tester.enterText(_field('Длительность'), '123');
+    await tester.enterText(_field('Дата'), '01.11.2026');
+
+    // Мутация другой сессии и полная перезагрузка дневника.
+    final model = workoutsModel(tester);
+    final removing = model.remove(mockSessions.last.id);
+    await tester.pump(Duration.zero);
+    expect(await removing, isNull);
+    final loading = model.load();
+    await tester.pumpAndSettle();
+    await loading;
+
+    expect(find.byType(WorkoutEditScreen), findsOneWidget);
+    expect(_fieldText(tester, 'Длительность'), '123');
+    expect(_fieldText(tester, 'Дата'), '01.11.2026');
   });
 
   testWidgets('фильтры не пропускают буквы в дату и длительность', (
@@ -255,7 +331,7 @@ void main() {
     expect(find.byType(WorkoutsScreen), findsOneWidget);
     expect(
       find.text(
-        'Тренировка ${formatNumericDate(mockToday)} сохранена: '
+        'Тренировка ${formatNumericDate(DateTime.now())} сохранена: '
         '45 мин, упражнений: 1',
       ),
       findsOneWidget,
