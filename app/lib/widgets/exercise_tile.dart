@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../data/mock_data.dart';
+import '../data/exercise.dart';
 import 'muscle_group_avatar.dart';
 
 /// Карточка упражнения в списке. Действие и правая часть передаются снаружи,

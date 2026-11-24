@@ -1,6 +1,8 @@
+import 'package:fittrack/data/mock_exercise_repository.dart';
 import 'package:fittrack/data/mock_network.dart';
 import 'package:fittrack/data/mock_workout_repository.dart';
 import 'package:fittrack/main.dart';
+import 'package:fittrack/models/exercises_model.dart';
 import 'package:fittrack/models/workouts_model.dart';
 import 'package:fittrack/router.dart';
 import 'package:fittrack/theme.dart';
@@ -15,13 +17,19 @@ class TestBackend {
   TestBackend({Duration latency = Duration.zero})
     : network = MockNetwork(latency: latency) {
     workouts = MockWorkoutRepository(network);
+    exercises = MockExerciseRepository(network);
   }
 
   final MockNetwork network;
   late final MockWorkoutRepository workouts;
+  late final MockExerciseRepository exercises;
 
-  Widget wrap(Widget child) =>
-      FitTrackProviders(network: network, workouts: workouts, child: child);
+  Widget wrap(Widget child) => FitTrackProviders(
+    network: network,
+    workouts: workouts,
+    exercises: exercises,
+    child: child,
+  );
 }
 
 /// Модели над приложением, как в main.dart.
@@ -32,6 +40,12 @@ Widget withModels(Widget child, {TestBackend? backend}) =>
 WorkoutsModel workoutsModel(WidgetTester tester, [Finder? finder]) =>
     Provider.of<WorkoutsModel>(
       tester.element(finder ?? find.byType(MaterialApp)),
+      listen: false,
+    );
+
+ExercisesModel exercisesModel(WidgetTester tester) =>
+    Provider.of<ExercisesModel>(
+      tester.element(find.byType(MaterialApp)),
       listen: false,
     );
 
