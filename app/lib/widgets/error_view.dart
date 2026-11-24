@@ -11,9 +11,10 @@ class ErrorView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    // Без собственной прокрутки: виджет встраивается и в списки (техника,
+    // профиль), а содержимое невысокое и помещается даже на узком экране.
     return Center(
-      // Прокрутка: на узком экране с крупным шрифтом текст не переполнит.
-      child: SingleChildScrollView(
+      child: Padding(
         padding: const EdgeInsets.all(24),
         child: Column(
           mainAxisSize: MainAxisSize.min,

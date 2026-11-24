@@ -41,6 +41,20 @@ void main() {
     expect(() => model.muscleGroups.add('Шея'), throwsUnsupportedError);
   });
 
+  test('техника: своя триада по id, копия только для чтения', () async {
+    expect(model.techniqueOf('ex-01'), isNull);
+    network.simulateError = true;
+    await model.loadTechnique('ex-01');
+    expect(model.techniqueOf('ex-01'), isNull);
+    expect(model.techniqueErrorOf('ex-01'), MockNetwork.errorMessage);
+
+    network.simulateError = false;
+    await model.loadTechnique('ex-01');
+    expect(model.techniqueErrorOf('ex-01'), isNull);
+    expect(model.techniqueOf('ex-01'), exerciseTechnique['ex-01']);
+    expect(() => model.techniqueOf('ex-01')!.clear(), throwsUnsupportedError);
+  });
+
   test('ошибка, затем retry; данные прошлой загрузки не теряются', () async {
     await model.load();
     network.simulateError = true;
