@@ -2,16 +2,21 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart';
 
 import '../data/formatters.dart';
-import '../data/mock_data.dart';
+import '../data/workout_session.dart';
+import '../models/exercises_model.dart';
+import '../models/workouts_model.dart';
+import '../widgets/confirm_delete_dialog.dart';
+import '../widgets/error_view.dart';
 import '../widgets/exercise_tile.dart';
 import '../widgets/section_title.dart';
 import 'not_found_screen.dart';
 
 /// Форма новой тренировки (/workouts/new) или редактирования существующей
-/// (/workouts/:id/edit). Получает только [sessionId] и сама находит сессию.
-/// Ввод проверяется локально; mock-данные не меняются — сохранение придёт на L4.
+/// (/workouts/:id/edit). Получает только [sessionId]; сессию и список
+/// упражнений берёт из моделей. Ввод проверяется локально (L3).
 class WorkoutEditScreen extends StatefulWidget {
   const WorkoutEditScreen({super.key, this.sessionId});
 
@@ -40,6 +45,12 @@ String? validateWorkoutDate(String? value) {
   return null;
 }
 
+/// Дата из уже проверенной строки «ДД.ММ.ГГГГ» (validateWorkoutDate == null).
+DateTime parseWorkoutDate(String value) {
+  final parts = value.trim().split('.').map(int.parse).toList();
+  return DateTime(parts[2], parts[1], parts[0]);
+}
+
 /// Длительность — положительное целое число минут.
 String? validateWorkoutDuration(String? value) {
   final text = value?.trim() ?? '';
@@ -63,18 +74,27 @@ class _WorkoutEditScreenState extends State<WorkoutEditScreen> {
   final _durationController = TextEditingController();
   final _notesController = TextEditingController();
 
-  /// Локальная копия выбора: список exerciseIds в mock остаётся нетронутым.
+  /// Выбор упражнений — эфемерное состояние формы, а не модели.
   Set<String> _selectedIds = {};
-
-  WorkoutSession? _session;
 
   /// После первой неудачной попытки ошибки обновляются сразу при исправлении.
   bool _submitted = false;
 
+  /// Поля уже заполнены. Заполняются ровно один раз: следующие извещения
+  /// модели (перезагрузка, мутации на других экранах) не стирают ввод.
+  bool _filled = false;
+
+  late final WorkoutsModel _workouts;
+
+  bool get _editing => widget.sessionId != null;
+
   @override
   void initState() {
     super.initState();
-    _loadSession();
+    // read, а не watch: подписка на извещения нужна только до заполнения.
+    _workouts = context.read<WorkoutsModel>();
+    _workouts.addListener(_fillOnce);
+    _fillOnce();
   }
 
   @override
@@ -84,27 +104,42 @@ class _WorkoutEditScreenState extends State<WorkoutEditScreen> {
     // без перезагрузки форма показала бы поля и ошибки предыдущей сессии.
     if (oldWidget.sessionId != widget.sessionId) {
       _submitted = false;
-      // reset очищает ошибки и текст полей; новые значения ставит _loadSession.
+      _filled = false;
+      _shown = false;
+      // reset очищает ошибки и текст полей; новые значения ставит _fillOnce.
       _formKey.currentState?.reset();
-      _loadSession();
+      _fillOnce();
     }
   }
 
-  void _loadSession() {
+  /// Вызывается сразу и при каждом извещении модели, но заполняет поля
+  /// только первый раз, когда данные есть. Без setState: экран и так
+  /// перестроится — он подписан на модель через watch.
+  void _fillOnce() {
+    if (_filled) return;
     final sessionId = widget.sessionId;
-    final session = sessionId == null
-        ? null
-        : mockSessions.where((s) => s.id == sessionId).firstOrNull;
-    _session = session;
-    // Новая тренировка начинается с демонстрационной «сегодняшней» даты.
-    _dateController.text = formatNumericDate(session?.date ?? mockToday);
-    _durationController.text = session == null ? '' : '${session.durationMin}';
-    _notesController.text = session?.notes ?? '';
-    _selectedIds = {...?session?.exerciseIds};
+    if (sessionId == null) {
+      // Новая тренировка начинается с настоящей сегодняшней даты.
+      _dateController.text = formatNumericDate(DateTime.now());
+      _durationController.text = '';
+      _notesController.text = '';
+      _selectedIds = {};
+      _filled = true;
+      return;
+    }
+    if (_workouts.isLoading || _workouts.error != null) return;
+    final session = _workouts.byId(sessionId);
+    if (session == null) return;
+    _dateController.text = formatNumericDate(session.date);
+    _durationController.text = '${session.durationMin}';
+    _notesController.text = session.notes;
+    _selectedIds = {...session.exerciseIds};
+    _filled = true;
   }
 
   @override
   void dispose() {
+    _workouts.removeListener(_fillOnce);
     _dateController.dispose();
     _durationController.dispose();
     _notesController.dispose();
@@ -117,23 +152,131 @@ class _WorkoutEditScreenState extends State<WorkoutEditScreen> {
     });
   }
 
-  void _save() {
+  /// Идёт сохранение: кнопка выключена, повторное нажатие не создаст дубль.
+  bool _busy = false;
+
+  Future<void> _save() async {
+    if (_busy) return;
+    // Та же защита, что у выключенной кнопки: не пишем поверх устаревших
+    // данных, пока пользователь не нажал «Повторить».
+    final workoutsState = context.read<WorkoutsModel>();
+    final exercisesState = context.read<ExercisesModel>();
+    if (_dependencyError(workoutsState, exercisesState) != null ||
+        _dependencyLoading(workoutsState, exercisesState)) {
+      return;
+    }
     if (!_formKey.currentState!.validate()) {
       setState(() => _submitted = true);
       _showFirstError();
       return;
     }
+    final model = context.read<WorkoutsModel>();
+    final catalog = context.read<ExercisesModel>().exercises;
+    // Порядок упражнений — как в каталоге, а не как их отмечали.
+    final exerciseIds = [
+      for (final e in catalog)
+        if (_selectedIds.contains(e.id)) e.id,
+      for (final id in _selectedIds)
+        if (!catalog.any((e) => e.id == id)) id,
+    ];
+    final date = parseWorkoutDate(_dateController.text);
     final minutes = int.parse(_durationController.text.trim());
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          'Тренировка ${_dateController.text.trim()} сохранена: '
-          '${formatDuration(minutes)}, упражнений: ${_selectedIds.length}',
+    final notes = _notesController.text.trim();
+
+    final sessionId = widget.sessionId;
+    final existing = sessionId == null ? null : model.byId(sessionId);
+    if (sessionId != null && existing == null) return; // экран уже «не найдено»
+
+    setState(() => _busy = true);
+    final String? error;
+    if (existing == null) {
+      // Временный id: настоящую идентичность даст хранилище (на L5 — сервер).
+      error = await model.add(
+        WorkoutSession(
+          id: '',
+          userId: '',
+          date: date,
+          exerciseIds: exerciseIds,
+          durationMin: minutes,
+          notes: notes,
         ),
-      ),
-    );
-    // Форма открыта push-ем, поэтому закрывается pop-ом.
-    context.pop();
+      );
+    } else {
+      error = await model.update(
+        existing.copyWith(
+          date: date,
+          exerciseIds: exerciseIds,
+          durationMin: minutes,
+          notes: notes,
+        ),
+      );
+    }
+    // Экран мог закрыться, пока «запрос» летел.
+    if (!mounted) return;
+    setState(() => _busy = false);
+    if (error != null) {
+      // Поля не трогаем: пользователь повторит, ничего не вводя заново.
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(SnackBar(content: Text(error)));
+      return;
+    }
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: Text(
+            'Тренировка ${formatNumericDate(date)} сохранена: '
+            '${formatDuration(minutes)}, упражнений: ${exerciseIds.length}',
+          ),
+        ),
+      );
+    // Список позади уже обновлён извещением модели — ничего не передаём.
+    _leave();
+  }
+
+  /// Удаление уже подтверждено и идёт: экран не подменяется на «не найдено»,
+  /// когда модель уберёт сессию, а спокойно закрывается.
+  bool _deleting = false;
+
+  Future<void> _delete() async {
+    final sessionId = widget.sessionId;
+    if (_busy || sessionId == null) return;
+    final ok = await confirmDeleteWorkout(context);
+    // Отмена и null не удаляют; экран мог исчезнуть, пока диалог был открыт.
+    if (ok != true || !mounted) return;
+
+    setState(() {
+      _busy = true;
+      _deleting = true;
+    });
+    final error = await context.read<WorkoutsModel>().remove(sessionId);
+    if (!mounted) return;
+    if (error != null) {
+      setState(() {
+        _busy = false;
+        _deleting = false;
+      });
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(SnackBar(content: Text(error)));
+      return;
+    }
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(const SnackBar(content: Text('Тренировка удалена')));
+    // Объекта больше нет — его экран уходит из стека.
+    _leave();
+  }
+
+  /// Форма открыта push-ем и закрывается pop-ом. Если её открыли прямым
+  /// адресом и возвращаться некуда, go ведёт в дневник.
+  void _leave() {
+    if (context.canPop()) {
+      context.pop();
+    } else {
+      context.go('/workouts');
+    }
   }
 
   /// Кнопка «Сохранить» внизу длинной формы: ошибка в начале может оказаться
@@ -172,10 +315,111 @@ class _WorkoutEditScreenState extends State<WorkoutEditScreen> {
     );
   }
 
+  String get _title =>
+      _editing ? 'Редактирование тренировки' : 'Новая тренировка';
+
+  void _reload() {
+    context.read<WorkoutsModel>().load();
+    context.read<ExercisesModel>().load();
+  }
+
+  /// Форма уже была показана пользователю: в полях может быть черновик.
+  bool _shown = false;
+
+  /// Текущая ошибка любой из моделей, на которых стоит форма: каталог даёт
+  /// список упражнений, дневник принимает сохранение. Кеш прошлой удачной
+  /// загрузки ошибку не отменяет.
+  String? _dependencyError(WorkoutsModel w, ExercisesModel e) =>
+      w.error ?? e.error;
+
+  bool _dependencyLoading(WorkoutsModel w, ExercisesModel e) =>
+      w.isLoading || e.isLoading;
+
+  /// Экран вместо формы, пока она ещё не показана; null — форму можно
+  /// показывать. Свежая форма честно проходит триаду по текущему состоянию
+  /// моделей. Показанную форму перезагрузки не прячут: иначе spinner на её
+  /// месте сбросил бы черновик, ошибки полей и прокрутку.
+  Widget? _stateView(WorkoutsModel workouts, ExercisesModel exercises) {
+    if (_shown) return null;
+    if (_dependencyLoading(workouts, exercises) ||
+        !exercises.hasData ||
+        !_filled) {
+      // !_filled без загрузки и ошибки — сессии нет, это ловит sessionGone.
+      final error = _dependencyError(workouts, exercises);
+      if (error != null && !_dependencyLoading(workouts, exercises)) {
+        return ErrorView(message: error, onRetry: _reload);
+      }
+      return const Center(child: CircularProgressIndicator());
+    }
+    final error = _dependencyError(workouts, exercises);
+    if (error != null) return ErrorView(message: error, onRetry: _reload);
+    return null;
+  }
+
+  /// Над показанной формой: данные устарели (ошибка) или обновляются.
+  /// Поля не трогаются; сохранение ждёт успешного «Повторить», чтобы после
+  /// pop дневник не остался на старом экране ошибки.
+  Widget? _staleBanner(WorkoutsModel workouts, ExercisesModel exercises) {
+    if (_dependencyLoading(workouts, exercises)) {
+      return const Padding(
+        padding: EdgeInsets.only(bottom: 16),
+        child: LinearProgressIndicator(),
+      );
+    }
+    final error = _dependencyError(workouts, exercises);
+    if (error == null) return null;
+    final theme = Theme.of(context);
+    return Card(
+      color: theme.colorScheme.errorContainer,
+      margin: const EdgeInsets.only(bottom: 16),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              error,
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: theme.colorScheme.onErrorContainer,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Введённые данные сохранены. Обновите данные, чтобы сохранить '
+              'тренировку.',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onErrorContainer,
+              ),
+            ),
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton.icon(
+                onPressed: _reload,
+                icon: const Icon(Icons.refresh),
+                label: const Text('Повторить'),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    // id есть, но такой сессии нет — не подменяем её пустой новой формой.
-    if (widget.sessionId != null && _session == null) {
+    final workouts = context.watch<WorkoutsModel>();
+    final exercises = context.watch<ExercisesModel>();
+
+    // Данные загружены, а сессии с таким id нет (старая ссылка или запись
+    // удалена) — сообщение, а не вечный spinner и не пустая новая форма.
+    final sessionId = widget.sessionId;
+    final sessionGone =
+        sessionId != null &&
+        !_deleting &&
+        !workouts.isLoading &&
+        workouts.error == null &&
+        workouts.byId(sessionId) == null;
+    if (sessionGone) {
       return const NotFoundScreen(
         title: 'Редактирование тренировки',
         message: 'Тренировка не найдена',
@@ -184,13 +428,33 @@ class _WorkoutEditScreenState extends State<WorkoutEditScreen> {
       );
     }
 
+    final stateView = _stateView(workouts, exercises);
+    if (stateView != null) {
+      return Scaffold(
+        appBar: AppBar(title: Text(_title)),
+        body: stateView,
+      );
+    }
+
     final theme = Theme.of(context);
+    // С этого кадра в полях может появиться черновик пользователя. Поле, а
+    // не setState: оно влияет только на следующие сборки, не на эту.
+    _shown = true;
+    final banner = _staleBanner(workouts, exercises);
+    // Сохранять можно только поверх свежих данных обеих моделей.
+    final canSave = !_busy && banner == null;
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(
-          _session == null ? 'Новая тренировка' : 'Редактирование тренировки',
-        ),
+        title: Text(_title),
+        actions: [
+          if (_editing)
+            IconButton(
+              tooltip: 'Удалить тренировку',
+              onPressed: _busy ? null : _delete,
+              icon: const Icon(Icons.delete_outline),
+            ),
+        ],
       ),
       // Не ListView: он строит только видимые элементы, и поле за экраном
       // выпало бы из Form — validate() его бы не проверил. Полей немного,
@@ -205,6 +469,8 @@ class _WorkoutEditScreenState extends State<WorkoutEditScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
+              // ?banner — элемент добавляется, только если не null.
+              ?banner,
               TextFormField(
                 key: _dateKey,
                 controller: _dateController,
@@ -266,7 +532,7 @@ class _WorkoutEditScreenState extends State<WorkoutEditScreen> {
                           ),
                         ),
                       ),
-                    for (final exercise in mockExercises)
+                    for (final exercise in exercises.exercises)
                       Padding(
                         padding: const EdgeInsets.only(bottom: 8),
                         child: ExerciseTile(
@@ -297,8 +563,15 @@ class _WorkoutEditScreenState extends State<WorkoutEditScreen> {
               ),
               const SizedBox(height: 24),
               FilledButton.icon(
-                onPressed: _save,
-                icon: const Icon(Icons.check),
+                // null выключает кнопку на время запроса и пока данные
+                // моделей устарели (см. _staleBanner).
+                onPressed: canSave ? _save : null,
+                icon: _busy
+                    ? const SizedBox.square(
+                        dimension: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.check),
                 label: const Text('Сохранить'),
               ),
             ],

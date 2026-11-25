@@ -1,6 +1,8 @@
 import 'package:fittrack/data/mock_data.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+/// Проверки seed-а mock repositories. Итоги статистики больше не зашиты —
+/// их расчёт проверяет stats_screen_test.dart (WorkoutStats).
 void main() {
   group('упражнения', () {
     test('не меньше 8, идентификаторы уникальны', () {
@@ -9,9 +11,9 @@ void main() {
       expect(ids.length, mockExercises.length);
     });
 
-    test('каждая группа мышц из фильтра используется и наоборот', () {
+    test('все шесть групп мышц фильтра представлены', () {
       final used = mockExercises.map((e) => e.muscleGroup).toSet();
-      expect(used, muscleGroups.toSet());
+      expect(used, {'Ноги', 'Грудь', 'Спина', 'Плечи', 'Руки', 'Пресс'});
     });
 
     test('есть длинное название для проверки переноса строк', () {
@@ -23,46 +25,6 @@ void main() {
         expect(exerciseTechnique[exercise.id], isNotEmpty, reason: exercise.id);
       }
       expect(exerciseTechnique.length, mockExercises.length);
-    });
-  });
-
-  group('статистика согласована с тренировками', () {
-    DateTime mondayOf(DateTime date) =>
-        DateTime(date.year, date.month, date.day - (date.weekday - 1));
-
-    test('не меньше 6 недель, все недели начинаются с понедельника', () {
-      expect(mockWeeklyStats.length, greaterThanOrEqualTo(6));
-      for (final week in mockWeeklyStats) {
-        expect(week.weekStart.weekday, DateTime.monday);
-      }
-    });
-
-    test('число сессий и минуты каждой недели совпадают с дневником', () {
-      final counts = <DateTime, int>{};
-      final minutes = <DateTime, int>{};
-      for (final session in mockSessions) {
-        final monday = mondayOf(session.date);
-        counts[monday] = (counts[monday] ?? 0) + 1;
-        minutes[monday] = (minutes[monday] ?? 0) + session.durationMin;
-      }
-
-      expect(
-        mockWeeklyStats.map((w) => w.weekStart).toSet(),
-        counts.keys.toSet(),
-      );
-      for (final week in mockWeeklyStats) {
-        final reason = '${week.weekStart}';
-        expect(week.sessionCount, counts[week.weekStart], reason: reason);
-        expect(week.totalMinutes, minutes[week.weekStart], reason: reason);
-      }
-    });
-
-    test('общие итоги совпадают с дневником', () {
-      expect(mockTotalSessions, mockSessions.length);
-      expect(
-        mockTotalMinutes,
-        mockSessions.fold<int>(0, (sum, s) => sum + s.durationMin),
-      );
     });
   });
 

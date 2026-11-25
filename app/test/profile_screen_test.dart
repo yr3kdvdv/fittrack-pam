@@ -2,6 +2,7 @@ import 'package:fittrack/data/mock_data.dart';
 import 'package:fittrack/screens/home_shell.dart';
 import 'package:fittrack/screens/login_screen.dart';
 import 'package:fittrack/screens/profile_screen.dart';
+import 'package:fittrack/widgets/error_view.dart';
 import 'package:fittrack/widgets/metric_card.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -44,10 +45,107 @@ void main() {
     expect(find.text(mockUser.email), findsOneWidget);
     expect(find.text('АЧ'), findsOneWidget);
     expect(find.byType(MetricCard), findsNWidgets(2));
-    expect(find.text('$mockTotalSessions'), findsOneWidget);
+    expect(find.text('${mockSessions.length}'), findsOneWidget);
 
     await tester.scrollUntilVisible(find.text(mockUser.goal), 200);
     expect(find.text('${mockUser.heightCm} см'), findsOneWidget);
+  });
+
+  testWidgets('итоги профиля следуют за дневником без перезагрузки', (
+    tester,
+  ) async {
+    await pumpScreen(tester, const ProfileScreen());
+    final model = workoutsModel(tester);
+
+    final removing = model.remove(model.sessions.first.id);
+    await tester.pump(Duration.zero);
+    expect(await removing, isNull);
+    await tester.pump();
+
+    expect(find.text('${mockSessions.length - 1}'), findsOneWidget);
+  });
+
+  testWidgets('авария: ошибка с retry, настройки и выход остаются', (
+    tester,
+  ) async {
+    final backend = TestBackend()..network.simulateError = true;
+    await pumpScreen(tester, const ProfileScreen(), backend: backend);
+
+    expect(find.byType(ErrorView), findsOneWidget);
+    expect(find.text(mockUser.fullName), findsNothing);
+    expect(find.text('Настройки'), findsOneWidget);
+    expect(find.widgetWithText(OutlinedButton, 'Выйти'), findsOneWidget);
+
+    backend.network.simulateError = false;
+    await tester.tap(find.text('Повторить'));
+    await tester.pumpAndSettle();
+    expect(find.byType(ErrorView), findsNothing);
+    expect(find.text(mockUser.fullName), findsOneWidget);
+  });
+
+  testWidgets('выключатель аварии: вкл → ошибка везде, выкл → retry → данные', (
+    tester,
+  ) async {
+    final backend = TestBackend();
+    await pumpApp(tester, location: '/profile', backend: backend);
+    final tile = find.widgetWithText(SwitchListTile, 'Симулировать сбой сети');
+    await tester.scrollUntilVisible(tile, 200);
+    await tester.pumpAndSettle();
+    expect(tester.widget<SwitchListTile>(tile).value, isFalse);
+
+    await tester.tap(tile);
+    await tester.pump();
+    expect(backend.network.simulateError, isTrue);
+    expect(tester.widget<SwitchListTile>(tile).value, isTrue);
+
+    // «Обновить» в профиле: ошибка, но выключатель по-прежнему доступен.
+    await tester.tap(find.byTooltip('Обновить'));
+    await tester.pumpAndSettle();
+    expect(find.byType(ErrorView), findsOneWidget);
+    await tester.scrollUntilVisible(tile, 200);
+    await tester.pumpAndSettle();
+    await tester.tap(tile);
+    await tester.pump();
+    expect(backend.network.simulateError, isFalse);
+
+    await tester.scrollUntilVisible(find.text('Повторить'), -200);
+    await tester.tap(find.text('Повторить'));
+    await tester.pumpAndSettle();
+    expect(find.byType(ErrorView), findsNothing);
+    expect(find.text(mockUser.fullName), findsOneWidget);
+  });
+
+  testWidgets('выключатель после повторного входа показывает реальный флаг', (
+    tester,
+  ) async {
+    final backend = TestBackend();
+    final router = await pumpApp(
+      tester,
+      location: '/profile',
+      backend: backend,
+    );
+    final tile = find.widgetWithText(SwitchListTile, 'Симулировать сбой сети');
+    await tester.scrollUntilVisible(tile, 200);
+    await tester.pumpAndSettle();
+    await tester.tap(tile);
+    await tester.pump();
+
+    // Выход уничтожает экран профиля вместе с его State.
+    final logout = find.widgetWithText(OutlinedButton, 'Выйти');
+    await tester.scrollUntilVisible(logout, 200);
+    await tester.pumpAndSettle();
+    await tester.tap(logout);
+    await tester.pumpAndSettle();
+    await tester.tap(_dialogButton('Выйти'));
+    await tester.pumpAndSettle();
+    expect(find.byType(ProfileScreen), findsNothing);
+
+    await logIn(tester);
+    router.go('/profile');
+    await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(tile, 200);
+    expect(tester.widget<SwitchListTile>(tile).value, isTrue);
+    expect(backend.network.simulateError, isTrue);
   });
 
   testWidgets('переключатель напоминаний честно сообщает, что не сохраняется', (

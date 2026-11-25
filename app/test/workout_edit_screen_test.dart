@@ -1,6 +1,11 @@
+import 'package:fittrack/data/exercise.dart';
 import 'package:fittrack/data/formatters.dart';
 import 'package:fittrack/data/mock_data.dart';
+import 'package:fittrack/data/mock_network.dart';
+import 'package:fittrack/screens/not_found_screen.dart';
 import 'package:fittrack/screens/workout_edit_screen.dart';
+import 'package:fittrack/theme.dart';
+import 'package:fittrack/widgets/error_view.dart';
 import 'package:fittrack/screens/workouts_screen.dart';
 import 'package:fittrack/widgets/exercise_tile.dart';
 import 'package:flutter/material.dart';
@@ -34,12 +39,6 @@ Future<void> _tapVisible(WidgetTester tester, Finder target) async {
 
 Future<void> _save(WidgetTester tester) =>
     _tapVisible(tester, find.text('Сохранить'));
-
-/// Снимок всех mock-сессий строками: списки сравниваются по содержимому.
-List<String> _snapshotSessions() => [
-  for (final s in mockSessions)
-    '${s.id}|${s.date}|${s.exerciseIds.join(',')}|${s.durationMin}|${s.notes}',
-];
 
 void main() {
   group('правила полей', () {
@@ -93,7 +92,7 @@ void main() {
 
     expect(find.text('Новая тренировка'), findsOneWidget);
     expect(find.byType(TextFormField), findsNWidgets(3));
-    expect(_fieldText(tester, 'Дата'), formatNumericDate(mockToday));
+    expect(_fieldText(tester, 'Дата'), formatNumericDate(DateTime.now()));
     expect(_fieldText(tester, 'Длительность'), isEmpty);
     for (final exercise in mockExercises) {
       expect(_isChecked(tester, exercise), isFalse, reason: exercise.id);
@@ -127,6 +126,79 @@ void main() {
         reason: exercise.id,
       );
     }
+  });
+
+  testWidgets('прямой адрес редактирования: spinner, затем заполненная форма', (
+    tester,
+  ) async {
+    final session = mockSessions.first;
+    final backend = TestBackend(latency: const Duration(milliseconds: 800));
+    await tester.pumpWidget(
+      backend.wrap(
+        MaterialApp(
+          theme: buildFitTrackTheme(),
+          home: WorkoutEditScreen(sessionId: session.id),
+        ),
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 400));
+    expect(find.byType(CircularProgressIndicator), findsOneWidget);
+    expect(find.byType(NotFoundScreen), findsNothing);
+
+    await tester.pump(const Duration(milliseconds: 400));
+    expect(find.byType(CircularProgressIndicator), findsNothing);
+    expect(_fieldText(tester, 'Длительность'), '${session.durationMin}');
+  });
+
+  testWidgets('ошибка загрузки формы: retry, затем поля сессии', (
+    tester,
+  ) async {
+    final session = mockSessions.first;
+    final backend = TestBackend()..network.simulateError = true;
+    await pumpScreen(
+      tester,
+      WorkoutEditScreen(sessionId: session.id),
+      backend: backend,
+    );
+    expect(find.byType(ErrorView), findsOneWidget);
+    expect(find.byType(NotFoundScreen), findsNothing);
+
+    backend.network.simulateError = false;
+    await tester.tap(find.text('Повторить'));
+    await tester.pumpAndSettle();
+    expect(_fieldText(tester, 'Длительность'), '${session.durationMin}');
+  });
+
+  testWidgets('неизвестный id после загрузки — сообщение, не spinner', (
+    tester,
+  ) async {
+    await pumpScreen(tester, const WorkoutEditScreen(sessionId: 'ws-404'));
+
+    expect(find.byType(CircularProgressIndicator), findsNothing);
+    expect(find.text('Тренировка не найдена'), findsOneWidget);
+  });
+
+  testWidgets('извещения и перезагрузка модели не стирают ввод', (
+    tester,
+  ) async {
+    final session = mockSessions.first;
+    await pumpScreen(tester, WorkoutEditScreen(sessionId: session.id));
+
+    await tester.enterText(_field('Длительность'), '123');
+    await tester.enterText(_field('Дата'), '01.11.2026');
+
+    // Мутация другой сессии и полная перезагрузка дневника.
+    final model = workoutsModel(tester);
+    final removing = model.remove(mockSessions.last.id);
+    await tester.pump(Duration.zero);
+    expect(await removing, isNull);
+    final loading = model.load();
+    await tester.pumpAndSettle();
+    await loading;
+
+    expect(find.byType(WorkoutEditScreen), findsOneWidget);
+    expect(_fieldText(tester, 'Длительность'), '123');
+    expect(_fieldText(tester, 'Дата'), '01.11.2026');
   });
 
   testWidgets('фильтры не пропускают буквы в дату и длительность', (
@@ -236,10 +308,9 @@ void main() {
     }
   });
 
-  testWidgets('новая тренировка: SnackBar, возврат в дневник, mock тот же', (
+  testWidgets('новая тренировка: список вырос, badge и SnackBar без reload', (
     tester,
   ) async {
-    final before = _snapshotSessions();
     await pumpApp(tester, location: '/workouts');
     await tester.tap(find.text('Новая тренировка'));
     await tester.pumpAndSettle();
@@ -252,30 +323,43 @@ void main() {
     expect(tester.takeException(), isNull);
     expect(find.byType(WorkoutEditScreen), findsNothing);
     expect(find.byType(WorkoutsScreen), findsOneWidget);
+    final today = formatNumericDate(DateTime.now());
     expect(
-      find.text(
-        'Тренировка ${formatNumericDate(mockToday)} сохранена: '
-        '45 мин, упражнений: 1',
+      find.text('Тренировка $today сохранена: 45 мин, упражнений: 1'),
+      findsOneWidget,
+    );
+
+    // Новая сессия сегодня — она первая в дневнике.
+    final model = workoutsModel(tester);
+    expect(model.count, mockSessions.length + 1);
+    final created = model.sessions.first;
+    expect(created.id, isNot(''));
+    expect(created.durationMin, 45);
+    expect(created.exerciseIds, [mockExercises.first.id]);
+    expect(find.byKey(ValueKey(created.id)), findsOneWidget);
+    expect(find.text(formatLongDate(DateTime.now())), findsOneWidget);
+    expect(
+      find.descendant(
+        of: find.byType(NavigationBar),
+        matching: find.text('${mockSessions.length + 1}'),
       ),
       findsOneWidget,
     );
-    expect(_snapshotSessions(), before);
   });
 
-  testWidgets('редактирование: SnackBar, возврат, mock-сессия не изменилась', (
+  testWidgets('редактирование: модель и карточка обновлены, seed не тронут', (
     tester,
   ) async {
-    final before = _snapshotSessions();
     final session = mockSessions.first;
     await pumpApp(tester, location: '/workouts/${session.id}/edit');
 
     await tester.enterText(_field('Длительность'), '90');
     await tester.enterText(_field('Дата'), '16.10.2026');
     // Снимаем одно выбранное упражнение и добавляем невыбранное.
-    await _tapVisible(
-      tester,
-      find.text(exerciseById(session.exerciseIds.first).name),
-    );
+    final removedName = mockExercises
+        .firstWhere((e) => e.id == session.exerciseIds.first)
+        .name;
+    await _tapVisible(tester, find.text(removedName));
     await _tapVisible(tester, find.text(mockExercises.last.name));
     await tester.enterText(find.text(session.notes), 'Другие заметки');
     await _save(tester);
@@ -289,6 +373,74 @@ void main() {
       ),
       findsOneWidget,
     );
-    expect(_snapshotSessions(), before);
+
+    final updated = workoutsModel(tester).byId(session.id)!;
+    expect(updated.durationMin, 90);
+    expect(updated.date, DateTime(2026, 10, 16));
+    expect(updated.notes, 'Другие заметки');
+    expect(updated.exerciseIds, [
+      ...session.exerciseIds.skip(1),
+      mockExercises.last.id,
+    ]);
+    expect(find.text('Пятница, 16 октября'), findsOneWidget);
+    expect(workoutsModel(tester).count, mockSessions.length);
+    // Repository работает с копией: общий seed не изменился.
+    expect(mockSessions.first.durationMin, 50);
+  });
+
+  testWidgets('авария при сохранении: SnackBar, поля целы, повтор успешен', (
+    tester,
+  ) async {
+    final backend = TestBackend();
+    await pumpApp(tester, location: '/workouts', backend: backend);
+    await tester.tap(find.text('Новая тренировка'));
+    await tester.pumpAndSettle();
+
+    await tester.enterText(_field('Длительность'), '33');
+    await tester.enterText(_field('Дата'), '20.11.2026');
+    await _tapVisible(tester, find.text(mockExercises[2].name));
+
+    backend.network.simulateError = true;
+    await _save(tester);
+    expect(find.text(MockNetwork.errorMessage), findsOneWidget);
+    expect(find.byType(WorkoutEditScreen), findsOneWidget);
+    expect(_fieldText(tester, 'Длительность'), '33');
+    expect(_fieldText(tester, 'Дата'), '20.11.2026');
+    expect(_isChecked(tester, mockExercises[2]), isTrue);
+    expect(workoutsModel(tester).count, mockSessions.length);
+
+    // SnackBar с ошибкой лежит над кнопкой; ждём, пока он скроется.
+    await tester.pump(const Duration(seconds: 5));
+    await tester.pumpAndSettle();
+    backend.network.simulateError = false;
+    await _save(tester);
+    expect(find.byType(WorkoutEditScreen), findsNothing);
+    expect(workoutsModel(tester).count, mockSessions.length + 1);
+  });
+
+  testWidgets('двойное нажатие «Сохранить» создаёт одну тренировку', (
+    tester,
+  ) async {
+    final backend = TestBackend(latency: const Duration(milliseconds: 800));
+    await pumpApp(tester, location: '/workouts/new', backend: backend);
+
+    await tester.enterText(_field('Длительность'), '40');
+    await _tapVisible(tester, find.text(mockExercises.first.name));
+    final button = find.text('Сохранить');
+    await tester.ensureVisible(button);
+    await tester.pumpAndSettle();
+
+    await tester.tap(button);
+    await tester.pump(const Duration(milliseconds: 100));
+    // Кнопка выключена, пока запрос в пути.
+    await tester.tap(button, warnIfMissed: false);
+    await tester.pumpAndSettle();
+
+    expect(workoutsModel(tester).count, mockSessions.length + 1);
+    expect(find.byType(WorkoutEditScreen), findsNothing);
+  });
+
+  test('parseWorkoutDate читает проверенную дату', () {
+    expect(parseWorkoutDate(' 05.03.2026 '), DateTime(2026, 3, 5));
   });
 }
